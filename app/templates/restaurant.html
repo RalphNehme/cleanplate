@@ -1,38 +1,44 @@
 {% extends "base.html" %}
-{% from "macros.html" import grade_badge, grade_label %}
-{% block title %}{{ r.name }} · inspection grade and history · CleanPlate{% endblock %}
+{% from "macros.html" import ring, official %}
+{% block title %}{{ r.name }} · hygiene and food score · CleanPlate{% endblock %}
 {% block head %}
 {% if coords %}
-<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
-<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<link rel="stylesheet" href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css">
+<script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
 {% endif %}
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
 {% endblock %}
 {% block body %}
+{% set hb = band(r.hygiene_score) %}
 <main class="mx-auto max-w-5xl space-y-4 px-4 py-6">
-  <a href="/" class="text-sm text-stone-500 hover:text-stone-900">← Back to map</a>
+  <a href="/{{ city.slug }}" class="text-sm text-stone-500 hover:text-stone-900">← {{ city.name }} map</a>
 
-  <section class="flex flex-col gap-5 rounded-xl border border-stone-200 bg-white p-5 sm:flex-row sm:items-center">
-    {{ grade_badge(r.latest_grade, "h-20 w-20 text-5xl rounded-xl") }}
+  <section class="flex flex-col gap-5 rounded-2xl border border-stone-200 bg-white p-5 sm:flex-row sm:items-center">
+    <div class="flex items-center gap-4">
+      {{ ring(r.hygiene_score, "h-24 w-24 text-4xl") }}
+      <div class="sm:hidden">
+        <div class="text-sm text-stone-500">Hygiene</div>
+        <div class="chip s-{{ hb.key }}">{{ hb.label }}</div>
+      </div>
+    </div>
     <div class="min-w-0 flex-1">
       <h1 class="text-2xl font-bold">{{ r.name }}</h1>
       <p class="text-stone-600">{{ r.cuisine or "Restaurant" }} · {{ r.address or "" }}{% if r.borough %}, {{ r.borough }}{% endif %} {{ r.zip or "" }}</p>
-      <p class="mt-1 text-sm text-stone-500">
-        {{ grade_label(r.latest_grade) }}
-        {% if r.latest_score is not none %} · latest score {{ r.latest_score }}{% endif %}
-        {% if r.latest_inspected_at %} · inspected {{ r.latest_inspected_at.strftime("%b %d, %Y") }}{% endif %}
-      </p>
+      <div class="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1">
+        <span class="chip s-{{ hb.key }} max-sm:hidden">Hygiene: {{ hb.label }}</span>
+        {{ official(r.latest_grade, city) }}
+        {% if r.latest_inspected_at %}<span class="text-xs text-stone-500">Last inspected {{ r.latest_inspected_at.strftime("%b %d, %Y") }}</span>{% endif %}
+        {% if not r.active %}<span class="chip s-none">Likely closed</span>{% endif %}
+      </div>
     </div>
-    {% if coords %}<div id="mini-map" class="h-36 w-full overflow-hidden rounded-lg sm:w-56"></div>{% endif %}
+    {% if coords %}<div id="mini-map" class="h-36 w-full overflow-hidden rounded-xl sm:w-56"></div>{% endif %}
   </section>
 
-  {% if city %}
-  <p class="text-xs text-stone-500">How NYC scores work: {{ city.score_scale }}. Each violation adds points.</p>
-  {% endif %}
+  {% include "partials/food.html" %}
 
   {% if history | length > 1 %}
-  <section class="rounded-xl border border-stone-200 bg-white p-5">
-    <h2 class="mb-3 font-semibold">Score history <span class="font-normal text-stone-500">(lower is better)</span></h2>
+  <section class="rounded-2xl border border-stone-200 bg-white p-5">
+    <h2 class="mb-3 font-semibold">Hygiene score history</h2>
     <div class="h-56"><canvas id="history"></canvas></div>
   </section>
   {% endif %}
@@ -40,24 +46,25 @@
   <section class="space-y-3">
     <h2 class="font-semibold">Inspections</h2>
     {% for i in r.inspections %}
-    <details class="rounded-xl border border-stone-200 bg-white" {% if loop.first %}open{% endif %}>
+    <details class="rounded-2xl border border-stone-200 bg-white" {% if loop.first %}open{% endif %}>
       <summary class="flex cursor-pointer items-center gap-3 px-5 py-3">
-        {{ grade_badge(i.raw_grade, "h-8 w-8 text-base") }}
+        {{ ring(i.hygiene_score, "h-10 w-10 text-sm") }}
         <div class="flex-1">
           <div class="font-medium">{{ i.inspected_at.strftime("%b %d, %Y") }}</div>
           <div class="text-sm text-stone-500">{{ i.type }}</div>
         </div>
         <div class="text-right text-sm">
-          {% if i.raw_score is not none %}<div class="font-semibold">{{ i.raw_score }} pts</div>{% endif %}
+          {% if i.raw_grade %}<div>{{ official(i.raw_grade, city) }}</div>
+          {% elif i.action and i.hygiene_score is none %}<div class="text-xs text-stone-500">{{ i.action }}</div>{% endif %}
           <div class="text-stone-500">{{ i.violations | length }} violation{{ "" if i.violations | length == 1 else "s" }}</div>
         </div>
       </summary>
       <div class="border-t border-stone-100 px-5 py-3 text-sm">
-        {% if i.action %}<p class="mb-2 text-stone-500">{{ i.action }}</p>{% endif %}
+        {% if i.action and city.slug == "nyc" %}<p class="mb-2 text-stone-500">{{ i.action }}</p>{% endif %}
         <ul class="space-y-2">
           {% for v in i.violations %}
           <li class="flex gap-2">
-            {% if v.critical %}<span class="h-fit shrink-0 rounded bg-orange-100 px-1.5 py-0.5 text-xs font-semibold text-orange-800">Critical</span>
+            {% if v.critical %}<span class="h-fit shrink-0 rounded bg-red-100 px-1.5 py-0.5 text-xs font-semibold text-red-800">Serious</span>
             {% else %}<span class="h-fit shrink-0 rounded bg-stone-100 px-1.5 py-0.5 text-xs font-semibold text-stone-600">Minor</span>{% endif %}
             <span>{{ v.description }}</span>
           </li>
@@ -74,25 +81,27 @@
 </main>
 <script>
 {% if coords %}
-const mini = L.map("mini-map", { zoomControl: false, dragging: false, scrollWheelZoom: false })
-  .setView({{ coords | list | tojson }}, 16);
-L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", { attribution: "&copy; OpenStreetMap" }).addTo(mini);
-L.circleMarker({{ coords | list | tojson }}, { radius: 8, color: "#1d4ed8", fillOpacity: 0.8 }).addTo(mini);
+const center = [{{ coords[1] }}, {{ coords[0] }}];
+const mini = new maplibregl.Map({
+  container: "mini-map", style: "https://tiles.openfreemap.org/styles/positron",
+  center, zoom: 15, interactive: false, attributionControl: { compact: true },
+});
+new maplibregl.Marker({ color: "#1c1917" }).setLngLat(center).addTo(mini);
 {% endif %}
 {% if history | length > 1 %}
-const history = {{ history | tojson }};
+const scoreHistory = {{ history | tojson }};
+const color = (s) => s >= 90 ? "#15803d" : s >= 85 ? "#65a30d" : s >= 70 ? "#d97706" : "#dc2626";
 new Chart(document.getElementById("history"), {
   type: "line",
   data: {
-    labels: history.map((h) => h.date),
-    datasets: [{ data: history.map((h) => h.score), borderColor: "#1c1917", tension: 0.25,
-      pointBackgroundColor: history.map((h) => h.score <= 13 ? "#1d4ed8" : h.score <= 27 ? "#15803d" : "#c2410c"),
-      pointRadius: 5 }],
+    labels: scoreHistory.map((h) => h.date),
+    datasets: [{ data: scoreHistory.map((h) => h.score), borderColor: "#1c1917", tension: 0.25,
+      pointBackgroundColor: scoreHistory.map((h) => color(h.score)), pointRadius: 6 }],
   },
   options: {
     maintainAspectRatio: false,
     plugins: { legend: { display: false } },
-    scales: { y: { beginAtZero: true, title: { display: true, text: "Points" } } },
+    scales: { y: { min: 0, max: 100, title: { display: true, text: "Hygiene score" } } },
   },
 });
 {% endif %}

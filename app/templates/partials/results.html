@@ -1,7 +1,8 @@
-{% from "macros.html" import grade_badge %}
+{% from "macros.html" import ring %}
 {% for r in results %}
 <a href="/r/{{ r.id }}" class="flex items-center gap-3 border-b border-stone-100 px-4 py-3 hover:bg-stone-50">
-  {{ grade_badge(r.latest_grade) }}
+  {{ ring(r.hygiene_score) }}
+  {{ ring(r.food_score, "h-8 w-8 text-xs", estimated=r.food_source != "reports") }}
   <div class="min-w-0 flex-1">
     <div class="truncate font-semibold">{{ r.name }}</div>
     <div class="truncate text-sm text-stone-500">

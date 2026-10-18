@@ -1,9 +1,11 @@
-{% macro grade_badge(grade, size="h-9 w-9 text-lg") -%}
-{%- set cls = {"A": "grade-a", "B": "grade-b", "C": "grade-c"}.get(grade, "grade-none") -%}
-<span class="grade {{ cls }} {{ size }}" title="{{ grade_label(grade) }}">{{ grade if grade in ("A", "B", "C") else "–" }}</span>
+{% macro ring(score, size="h-11 w-11 text-base", estimated=False) -%}
+{%- set b = band(score) -%}
+<span class="ring s-{{ b.key }} {{ size }}{% if estimated %} est{% endif %}" title="{{ b.label }}{% if estimated %} (estimated){% endif %}">{{ score if score is not none else "–" }}</span>
 {%- endmacro %}
 
-{% macro grade_label(grade) -%}
-{{ {"A": "Grade A", "B": "Grade B", "C": "Grade C", "N": "Not yet graded",
-    "Z": "Grade pending", "P": "Grade pending (reopened)"}.get(grade, "No grade yet") }}
+{% macro official(value, city) -%}
+{%- if value -%}
+{%- set labels = {"N": "Not yet graded", "Z": "Grade pending", "P": "Grade pending"} -%}
+<span class="whitespace-nowrap text-xs text-stone-500">{{ city.official_label }}: <strong class="text-stone-700">{{ labels.get(value, value) }}</strong></span>
+{%- endif -%}
 {%- endmacro %}

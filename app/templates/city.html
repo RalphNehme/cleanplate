@@ -1,0 +1,72 @@
+{% extends "base.html" %}
+{% block title %}{{ city.name }} restaurant hygiene and food scores · CleanPlate{% endblock %}
+{% block head %}
+<link rel="stylesheet" href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css">
+<script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
+{% endblock %}
+{% block body %}
+{% set select = "rounded-lg border border-stone-300 bg-white px-2 py-1.5" %}
+<main class="mx-auto flex max-w-7xl flex-col gap-4 px-4 py-4 lg:h-[calc(100vh-8.5rem)] lg:flex-row">
+  <section class="flex min-h-0 flex-col overflow-hidden rounded-2xl border border-stone-200 bg-white lg:w-[27rem]">
+    <form id="filters" class="space-y-2 border-b border-stone-200 p-4"
+          hx-get="/{{ city.slug }}/search" hx-target="#results"
+          hx-trigger="input changed delay:300ms from:#q, change from:select, near">
+      <h1 class="text-xl font-bold">{{ city.name }} restaurants</h1>
+      <input id="q" name="q" type="search" placeholder="Search by name…" autocomplete="off"
+             class="w-full rounded-lg border border-stone-300 px-3 py-2 focus:border-stone-500 focus:outline-none">
+      <div class="grid grid-cols-2 gap-2 text-sm">
+        <select name="area" class="{{ select }}" aria-label="Area">
+          <option value="">{{ "All boroughs" if city.slug == "nyc" else "All ZIP codes" }}</option>
+          {% for a in options.areas %}<option>{{ a }}</option>{% endfor %}
+        </select>
+        <select name="cuisine" class="{{ select }}" aria-label="Cuisine">
+          <option value="">All cuisines</option>
+          {% for c in options.cuisines %}<option>{{ c }}</option>{% endfor %}
+        </select>
+        <select name="hygiene" class="{{ select }}" aria-label="Hygiene score">
+          <option value="">Any hygiene</option>
+          <option value="excellent">Hygiene 90+</option>
+          <option value="good">Hygiene 85+</option>
+          <option value="fair">Hygiene 70–84</option>
+          <option value="poor">Hygiene under 70</option>
+        </select>
+        <select name="food" class="{{ select }}" aria-label="Food score">
+          <option value="">Any food score</option>
+          <option value="excellent">Food 90+</option>
+          <option value="good">Food 85+</option>
+          <option value="fair">Food 70–84</option>
+          <option value="poor">Food under 70</option>
+        </select>
+        <select name="oil" class="{{ select }} col-span-2" aria-label="Cooking oil">
+          <option value="">Any cooking oil</option>
+          <option value="no-seed">No seed oils (visitor reported)</option>
+        </select>
+      </div>
+      <input type="hidden" name="lat">
+      <input type="hidden" name="lon">
+      <button type="button" id="near"
+              class="w-full rounded-lg bg-stone-900 px-3 py-2 text-sm font-semibold text-white hover:bg-stone-700">
+        Restaurants near me
+      </button>
+    </form>
+    <div class="flex items-center justify-between border-b border-stone-100 px-4 py-2 text-xs text-stone-500">
+      <span>Hygiene · Food</span><span>Dashed = estimated food score</span>
+    </div>
+    <div id="results" class="min-h-0 flex-1 overflow-y-auto max-lg:max-h-[32rem]">
+      {% include "partials/results.html" %}
+    </div>
+  </section>
+  <section class="relative min-h-0 flex-1 overflow-hidden rounded-2xl border border-stone-200 max-lg:h-[65vh]">
+    <div id="map" data-city="{{ city.slug }}" data-lat="{{ city.center_lat }}"
+         data-lon="{{ city.center_lon }}" data-zoom="{{ city.zoom }}"></div>
+    <div class="absolute bottom-3 left-3 z-10 flex flex-wrap gap-x-3 gap-y-1 rounded-xl bg-white/95 px-3 py-2 text-xs font-medium shadow">
+      <span class="font-semibold">Hygiene</span>
+      <span class="flex items-center gap-1 s-excellent"><span class="dot"></span>90+</span>
+      <span class="flex items-center gap-1 s-good"><span class="dot"></span>85–89</span>
+      <span class="flex items-center gap-1 s-fair"><span class="dot"></span>70–84</span>
+      <span class="flex items-center gap-1 s-poor"><span class="dot"></span>&lt;70</span>
+    </div>
+  </section>
+</main>
+<script src="/static/map.js"></script>
+{% endblock %}

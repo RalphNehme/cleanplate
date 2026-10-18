@@ -1,0 +1,37 @@
+{% extends "base.html" %}
+{% from "macros.html" import ring %}
+{% block title %}How scores work · CleanPlate{% endblock %}
+{% block body %}
+<main class="prose-sm mx-auto max-w-3xl space-y-8 px-4 py-10 text-stone-700">
+  <section>
+    <h1 class="text-3xl font-bold text-stone-900">How scores work</h1>
+    <p class="mt-2">Every restaurant gets two scores from 1 to 100. Higher is always better.</p>
+    <div class="mt-4 flex flex-wrap gap-4 text-sm">
+      {% for s, label in [(95, "90–100 Excellent"), (87, "85–89 Good"), (77, "70–84 Fair"), (52, "Under 70 Poor")] %}
+      <span class="flex items-center gap-2">{{ ring(s, "h-9 w-9 text-sm") }} {{ label }}</span>
+      {% endfor %}
+    </div>
+  </section>
+
+  <section class="space-y-2">
+    <h2 class="text-xl font-semibold text-stone-900">Hygiene score</h2>
+    <p>Comes from the restaurant's most recent health inspection that produced a result.</p>
+    <ul class="list-disc space-y-1 pl-5">
+      <li><strong>New York City:</strong> the city adds points for each violation (0 is perfect). CleanPlate turns points into a 1–100 score that lines up with the official letter grade: A becomes 85–100, B becomes 70–84 and C falls below 70. A restaurant closed by the Health Department is capped at 30.</li>
+      <li><strong>Chicago:</strong> there's no official score, only Pass, Pass with Conditions or Fail. CleanPlate counts violations by severity (Priority 7 points, Priority Foundation 4, Core 2) and converts them the same way. A Fail is capped at 60 and a Pass with Conditions at 84. Inspections from July 2018 onward are included.</li>
+    </ul>
+    <p>The official grade or result is always shown next to the score. Restaurants that went out of business or haven't been inspected in 3 years are hidden.</p>
+  </section>
+
+  <section class="space-y-2">
+    <h2 class="text-xl font-semibold text-stone-900">Food score</h2>
+    <p>How healthy the food is likely to be, including what it's cooked in.</p>
+    <ul class="list-disc space-y-1 pl-5">
+      <li><strong>Estimated</strong> (dashed ring): until enough visitors report, the score is a rough estimate from the type of restaurant. For example, salad and Mediterranean places score higher, and fried chicken, burgers and donuts score lower. It describes the kind of restaurant, not this specific kitchen.</li>
+      <li><strong>Visitor reports</strong> (solid ring): once {{ min_reports }} people report, their answers replace the estimate. Cooking oil counts for half, fresh vs. processed ingredients for 30% and healthy menu options for 20%.</li>
+      <li><strong>Cooking oil:</strong> olive and avocado oil score {{ oil_points.olive }}, butter, ghee or tallow {{ oil_points.animal }}, and seed oils (canola, soybean, corn, sunflower, "vegetable") {{ oil_points.seed }}.</li>
+    </ul>
+    <p class="rounded-xl bg-stone-100 p-3 text-sm">The seed-oil penalty is CleanPlate's own editorial choice. Major health organizations, including the American Heart Association, consider seed oils part of a healthy diet, so weigh this score accordingly.</p>
+  </section>
+</main>
+{% endblock %}

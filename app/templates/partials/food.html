@@ -1,0 +1,53 @@
+{% from "macros.html" import ring %}
+<section id="food" class="rounded-2xl border border-stone-200 bg-white p-5">
+  <div class="flex items-start gap-4">
+    {{ ring(r.food_score, "h-16 w-16 text-2xl", estimated=r.food_source != "reports") }}
+    <div class="flex-1">
+      <h2 class="text-lg font-semibold">Food score</h2>
+      {% if r.food_source == "reports" %}
+      <p class="text-sm text-stone-600">Based on {{ r.food_reports_count }} visitor reports.</p>
+      {% else %}
+      <p class="text-sm text-stone-600">
+        <strong>Estimated</strong> from the type of restaurant{% if r.cuisine %} ({{ r.cuisine }}){% endif %}.
+        {% if r.food_reports_count %}{{ r.food_reports_count }} of {{ min_reports }} reports needed to replace the estimate.
+        {% else %}{{ min_reports }} visitor reports replace the estimate.{% endif %}
+      </p>
+      {% endif %}
+      {% if r.reported_oil %}
+      <p class="mt-2 text-sm">Visitors report cooking with: <strong>{{ oil_labels[r.reported_oil] }}</strong></p>
+      {% endif %}
+    </div>
+  </div>
+
+  <details class="mt-4 rounded-xl bg-stone-50 p-4" {% if message %}open{% endif %}>
+    <summary class="cursor-pointer text-sm font-semibold">Eaten here? Report what you saw</summary>
+    <form class="mt-3 space-y-3" hx-post="/r/{{ r.id }}/report" hx-target="#food" hx-swap="outerHTML">
+      <fieldset>
+        <legend class="mb-1 text-sm font-medium">What do they cook with?</legend>
+        <div class="flex flex-wrap gap-2">
+          {% for key, label in [("seed", "Seed oils"), ("olive", "Olive oil"), ("avocado", "Avocado oil"), ("animal", "Butter, ghee or tallow"), ("", "Not sure")] %}
+          <label class="choice relative"><input type="radio" name="oil" value="{{ key }}"><span>{{ label }}</span></label>
+          {% endfor %}
+        </div>
+      </fieldset>
+      <fieldset>
+        <legend class="mb-1 text-sm font-medium">Ingredients</legend>
+        <div class="flex flex-wrap gap-2">
+          {% for key, label in [("fresh", "Mostly fresh"), ("mixed", "Mixed"), ("processed", "Mostly processed or frozen"), ("", "Not sure")] %}
+          <label class="choice relative"><input type="radio" name="ingredients" value="{{ key }}"><span>{{ label }}</span></label>
+          {% endfor %}
+        </div>
+      </fieldset>
+      <fieldset>
+        <legend class="mb-1 text-sm font-medium">Healthy options on the menu</legend>
+        <div class="flex flex-wrap gap-2">
+          {% for key, label in [("many", "Many"), ("some", "Some"), ("few", "Few or none"), ("", "Not sure")] %}
+          <label class="choice relative"><input type="radio" name="healthy" value="{{ key }}"><span>{{ label }}</span></label>
+          {% endfor %}
+        </div>
+      </fieldset>
+      <button class="rounded-lg bg-stone-900 px-4 py-2 text-sm font-semibold text-white hover:bg-stone-700">Submit report</button>
+      {% if message %}<p class="text-sm font-medium text-stone-700">{{ message }}</p>{% endif %}
+    </form>
+  </details>
+</section>
