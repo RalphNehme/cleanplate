@@ -8,10 +8,11 @@ from sqlalchemy import func, select
 from app.config import settings
 from app.db import SessionLocal
 from app.models import Inspection, Restaurant
+from pipeline.adapters.chicago import ChicagoAdapter
 from pipeline.adapters.nyc import NYCAdapter
 from pipeline.load import city_id, load
 
-ADAPTERS = {"nyc": NYCAdapter}
+ADAPTERS = {"nyc": NYCAdapter, "chicago": ChicagoAdapter}
 # Grades can change after adjudication, so incremental runs re-read recent months.
 LOOKBACK = timedelta(days=120)
 
