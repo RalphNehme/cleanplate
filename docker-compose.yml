@@ -1,0 +1,38 @@
+services:
+  db:
+    image: postgis/postgis:16-3.4
+    environment:
+      POSTGRES_USER: cleanplate
+      POSTGRES_PASSWORD: cleanplate
+      POSTGRES_DB: cleanplate
+    ports:
+      - "5433:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U cleanplate"]
+      interval: 5s
+      retries: 10
+
+  web:
+    build: .
+    environment:
+      DATABASE_URL: postgresql+psycopg://cleanplate:cleanplate@db:5432/cleanplate
+    ports:
+      - "8000:8000"
+    depends_on:
+      db:
+        condition: service_healthy
+
+  pipeline:
+    build: .
+    command: ["python", "-m", "pipeline.run", "--city", "nyc"]
+    environment:
+      DATABASE_URL: postgresql+psycopg://cleanplate:cleanplate@db:5432/cleanplate
+    depends_on:
+      db:
+        condition: service_healthy
+    profiles: ["pipeline"]
+
+volumes:
+  pgdata:
