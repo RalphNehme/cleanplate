@@ -1,0 +1,56 @@
+{% extends "base.html" %}
+{% block title %}CleanPlate · NYC restaurant inspection grades on a map{% endblock %}
+{% block head %}
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css">
+<link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css">
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
+{% endblock %}
+{% block body %}
+<main class="mx-auto flex max-w-7xl flex-col gap-4 px-4 py-4 lg:h-[calc(100vh-7.5rem)] lg:flex-row">
+  <section class="flex min-h-0 flex-col overflow-hidden rounded-xl border border-stone-200 bg-white lg:w-[26rem]">
+    <form id="filters" class="space-y-2 border-b border-stone-200 p-4"
+          hx-get="/search" hx-target="#results"
+          hx-trigger="input changed delay:300ms from:#q, change from:select, near">
+      <h1 class="text-xl font-bold">How clean is that restaurant?</h1>
+      <p class="text-sm text-stone-500">Health inspection grades for every restaurant in New York City.</p>
+      <input id="q" name="q" type="search" placeholder="Search by name…" autocomplete="off"
+             class="w-full rounded-lg border border-stone-300 px-3 py-2 focus:border-stone-500 focus:outline-none">
+      <div class="grid grid-cols-3 gap-2 text-sm">
+        <select name="borough" class="rounded-lg border border-stone-300 px-2 py-1.5">
+          <option value="">All boroughs</option>
+          {% for b in options.boroughs %}<option>{{ b }}</option>{% endfor %}
+        </select>
+        <select name="cuisine" class="rounded-lg border border-stone-300 px-2 py-1.5">
+          <option value="">All cuisines</option>
+          {% for c in options.cuisines %}<option>{{ c }}</option>{% endfor %}
+        </select>
+        <select name="grade" class="rounded-lg border border-stone-300 px-2 py-1.5">
+          <option value="">Any grade</option>
+          {% for g in options.grades %}<option value="{{ g }}">Grade {{ g }}</option>{% endfor %}
+        </select>
+      </div>
+      <input type="hidden" name="lat" id="lat">
+      <input type="hidden" name="lon" id="lon">
+      <button type="button" id="near"
+              class="w-full rounded-lg bg-stone-900 px-3 py-2 text-sm font-semibold text-white hover:bg-stone-700">
+        Restaurants near me
+      </button>
+    </form>
+    <div id="results" class="min-h-0 flex-1 overflow-y-auto max-lg:max-h-[32rem]">
+      {% include "partials/results.html" %}
+    </div>
+  </section>
+  <section class="relative min-h-0 flex-1 overflow-hidden rounded-xl border border-stone-200 max-lg:h-[60vh]">
+    <div id="map"></div>
+    <div class="absolute bottom-3 left-3 z-[1000] flex gap-3 rounded-lg bg-white/95 px-3 py-2 text-xs font-medium shadow">
+      <span class="flex items-center gap-1"><span class="pin pin-a !h-3 !w-3"></span>A</span>
+      <span class="flex items-center gap-1"><span class="pin pin-b !h-3 !w-3"></span>B</span>
+      <span class="flex items-center gap-1"><span class="pin pin-c !h-3 !w-3"></span>C</span>
+      <span class="flex items-center gap-1"><span class="pin pin-none !h-3 !w-3"></span>Pending / none</span>
+    </div>
+  </section>
+</main>
+<script src="/static/map.js"></script>
+{% endblock %}

@@ -1,0 +1,32 @@
+.grade {
+  display: inline-flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  border-radius: 0.5rem;
+  border: 2px solid currentColor;
+  font-weight: 800;
+  background: #fff;
+}
+.grade-a { color: #1d4ed8; }
+.grade-b { color: #15803d; }
+.grade-c { color: #c2410c; }
+.grade-none { color: #a8a29e; }
+
+.pin {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  border: 2px solid #fff;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.4);
+  color: #fff;
+  font: 700 11px/18px system-ui, sans-serif;
+  text-align: center;
+}
+.pin-a { background: #1d4ed8; }
+.pin-b { background: #15803d; }
+.pin-c { background: #c2410c; }
+.pin-none { background: #a8a29e; }
+
+#map { height: 100%; min-height: 360px; }
+.htmx-request.loading-bar { opacity: 1; }

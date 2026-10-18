@@ -1,0 +1,9 @@
+{% macro grade_badge(grade, size="h-9 w-9 text-lg") -%}
+{%- set cls = {"A": "grade-a", "B": "grade-b", "C": "grade-c"}.get(grade, "grade-none") -%}
+<span class="grade {{ cls }} {{ size }}" title="{{ grade_label(grade) }}">{{ grade if grade in ("A", "B", "C") else "–" }}</span>
+{%- endmacro %}
+
+{% macro grade_label(grade) -%}
+{{ {"A": "Grade A", "B": "Grade B", "C": "Grade C", "N": "Not yet graded",
+    "Z": "Grade pending", "P": "Grade pending (reopened)"}.get(grade, "No grade yet") }}
+{%- endmacro %}

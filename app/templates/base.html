@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}CleanPlate{% endblock %}</title>
+  <meta name="description" content="Restaurant health inspection grades, scores and violations, on a map.">
+  <link rel="icon" href="/static/favicon.svg" type="image/svg+xml">
+  <script src="https://cdn.tailwindcss.com/3.4.5"></script>
+  <script src="https://unpkg.com/htmx.org@2.0.3"></script>
+  <link rel="stylesheet" href="/static/app.css">
+  {% block head %}{% endblock %}
+</head>
+<body class="bg-stone-50 text-stone-900 antialiased">
+  <header class="border-b border-stone-200 bg-white">
+    <nav class="mx-auto flex max-w-7xl items-center justify-between px-4 py-3">
+      <a href="/" class="flex items-center gap-2 text-lg font-bold tracking-tight">
+        <img src="/static/favicon.svg" alt="" class="h-7 w-7"> CleanPlate
+        <span class="rounded bg-stone-100 px-1.5 py-0.5 text-xs font-medium text-stone-500">NYC</span>
+      </a>
+      <div class="flex gap-5 text-sm font-medium text-stone-600">
+        <a href="/" class="hover:text-stone-900">Map</a>
+        <a href="/stats" class="hover:text-stone-900">Stats</a>
+      </div>
+    </nav>
+  </header>
+  {% block body %}{% endblock %}
+  <footer class="mx-auto max-w-7xl px-4 py-6 text-xs text-stone-500">
+    Data: NYC Department of Health and Mental Hygiene, via NYC Open Data. Updated nightly.
+    CleanPlate is independent and not affiliated with the City of New York.
+  </footer>
+</body>
+</html>

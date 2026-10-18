@@ -1,0 +1,100 @@
+{% extends "base.html" %}
+{% from "macros.html" import grade_badge, grade_label %}
+{% block title %}{{ r.name }} · inspection grade and history · CleanPlate{% endblock %}
+{% block head %}
+{% if coords %}
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+{% endif %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+{% endblock %}
+{% block body %}
+<main class="mx-auto max-w-5xl space-y-4 px-4 py-6">
+  <a href="/" class="text-sm text-stone-500 hover:text-stone-900">← Back to map</a>
+
+  <section class="flex flex-col gap-5 rounded-xl border border-stone-200 bg-white p-5 sm:flex-row sm:items-center">
+    {{ grade_badge(r.latest_grade, "h-20 w-20 text-5xl rounded-xl") }}
+    <div class="min-w-0 flex-1">
+      <h1 class="text-2xl font-bold">{{ r.name }}</h1>
+      <p class="text-stone-600">{{ r.cuisine or "Restaurant" }} · {{ r.address or "" }}{% if r.borough %}, {{ r.borough }}{% endif %} {{ r.zip or "" }}</p>
+      <p class="mt-1 text-sm text-stone-500">
+        {{ grade_label(r.latest_grade) }}
+        {% if r.latest_score is not none %} · latest score {{ r.latest_score }}{% endif %}
+        {% if r.latest_inspected_at %} · inspected {{ r.latest_inspected_at.strftime("%b %d, %Y") }}{% endif %}
+      </p>
+    </div>
+    {% if coords %}<div id="mini-map" class="h-36 w-full overflow-hidden rounded-lg sm:w-56"></div>{% endif %}
+  </section>
+
+  {% if city %}
+  <p class="text-xs text-stone-500">How NYC scores work: {{ city.score_scale }}. Each violation adds points.</p>
+  {% endif %}
+
+  {% if history | length > 1 %}
+  <section class="rounded-xl border border-stone-200 bg-white p-5">
+    <h2 class="mb-3 font-semibold">Score history <span class="font-normal text-stone-500">(lower is better)</span></h2>
+    <div class="h-56"><canvas id="history"></canvas></div>
+  </section>
+  {% endif %}
+
+  <section class="space-y-3">
+    <h2 class="font-semibold">Inspections</h2>
+    {% for i in r.inspections %}
+    <details class="rounded-xl border border-stone-200 bg-white" {% if loop.first %}open{% endif %}>
+      <summary class="flex cursor-pointer items-center gap-3 px-5 py-3">
+        {{ grade_badge(i.raw_grade, "h-8 w-8 text-base") }}
+        <div class="flex-1">
+          <div class="font-medium">{{ i.inspected_at.strftime("%b %d, %Y") }}</div>
+          <div class="text-sm text-stone-500">{{ i.type }}</div>
+        </div>
+        <div class="text-right text-sm">
+          {% if i.raw_score is not none %}<div class="font-semibold">{{ i.raw_score }} pts</div>{% endif %}
+          <div class="text-stone-500">{{ i.violations | length }} violation{{ "" if i.violations | length == 1 else "s" }}</div>
+        </div>
+      </summary>
+      <div class="border-t border-stone-100 px-5 py-3 text-sm">
+        {% if i.action %}<p class="mb-2 text-stone-500">{{ i.action }}</p>{% endif %}
+        <ul class="space-y-2">
+          {% for v in i.violations %}
+          <li class="flex gap-2">
+            {% if v.critical %}<span class="h-fit shrink-0 rounded bg-orange-100 px-1.5 py-0.5 text-xs font-semibold text-orange-800">Critical</span>
+            {% else %}<span class="h-fit shrink-0 rounded bg-stone-100 px-1.5 py-0.5 text-xs font-semibold text-stone-600">Minor</span>{% endif %}
+            <span>{{ v.description }}</span>
+          </li>
+          {% else %}
+          <li class="text-stone-500">No violations cited.</li>
+          {% endfor %}
+        </ul>
+      </div>
+    </details>
+    {% else %}
+    <p class="text-sm text-stone-500">Not inspected yet.</p>
+    {% endfor %}
+  </section>
+</main>
+<script>
+{% if coords %}
+const mini = L.map("mini-map", { zoomControl: false, dragging: false, scrollWheelZoom: false })
+  .setView({{ coords | list | tojson }}, 16);
+L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", { attribution: "&copy; OpenStreetMap" }).addTo(mini);
+L.circleMarker({{ coords | list | tojson }}, { radius: 8, color: "#1d4ed8", fillOpacity: 0.8 }).addTo(mini);
+{% endif %}
+{% if history | length > 1 %}
+const history = {{ history | tojson }};
+new Chart(document.getElementById("history"), {
+  type: "line",
+  data: {
+    labels: history.map((h) => h.date),
+    datasets: [{ data: history.map((h) => h.score), borderColor: "#1c1917", tension: 0.25,
+      pointBackgroundColor: history.map((h) => h.score <= 13 ? "#1d4ed8" : h.score <= 27 ? "#15803d" : "#c2410c"),
+      pointRadius: 5 }],
+  },
+  options: {
+    maintainAspectRatio: false,
+    plugins: { legend: { display: false } },
+    scales: { y: { beginAtZero: true, title: { display: true, text: "Points" } } },
+  },
+});
+{% endif %}
+</script>
+{% endblock %}
