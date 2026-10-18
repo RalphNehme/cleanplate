@@ -6,6 +6,7 @@ class Settings(BaseSettings):
 
     database_url: str = "postgresql+psycopg://cleanplate:cleanplate@localhost:5433/cleanplate"
     socrata_app_token: str = ""
+    report_salt: str = "dev-only-salt"
 
 
 settings = Settings()
