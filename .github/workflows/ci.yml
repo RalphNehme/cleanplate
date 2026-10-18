@@ -1,0 +1,41 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    services:
+      db:
+        image: postgis/postgis:16-3.4
+        env:
+          POSTGRES_USER: cleanplate
+          POSTGRES_PASSWORD: cleanplate
+          POSTGRES_DB: cleanplate
+        ports: ["5433:5432"]
+        options: >-
+          --health-cmd "pg_isready -U cleanplate" --health-interval 5s --health-retries 10
+    env:
+      DATABASE_URL: postgresql+psycopg://cleanplate:cleanplate@localhost:5433/cleanplate
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: requirements-dev.txt
+      - run: pip install -r requirements-dev.txt
+      - run: ruff check .
+      - run: ruff format --check .
+      - run: alembic upgrade head
+      - run: pytest -v
+
+  docker:
+    runs-on: ubuntu-latest
+    needs: test
+    steps:
+      - uses: actions/checkout@v4
+      - run: docker build -t cleanplate .
