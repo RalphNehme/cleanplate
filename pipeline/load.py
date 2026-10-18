@@ -4,6 +4,7 @@ from sqlalchemy import delete, select, text
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.orm import Session
 
+from app.food import estimate, infer_cuisine, refresh_food
 from app.models import City, Inspection, Restaurant, Violation
 from pipeline.adapters.base import RestaurantRecord
 
@@ -50,21 +51,24 @@ def city_id(session: Session, slug: str) -> int:
     return session.scalar(select(City.id).where(City.slug == slug))
 
 
+def restaurant_row(cid: int, r: RestaurantRecord) -> dict:
+    cuisine = r.cuisine or infer_cuisine(r.name)
+    return {
+        "city_id": cid,
+        "source_id": r.source_id,
+        "name": r.name[:200],
+        "address": r.address,
+        "borough": r.borough,
+        "zip": r.zip,
+        "cuisine": cuisine,
+        "phone": r.phone,
+        "geom": f"SRID=4326;POINT({r.lon} {r.lat})" if r.lat is not None else None,
+        "food_estimate": estimate(cuisine, r.name),
+    }
+
+
 def load_batch(session: Session, cid: int, batch: list[RestaurantRecord]) -> None:
-    rows = [
-        {
-            "city_id": cid,
-            "source_id": r.source_id,
-            "name": r.name[:200],
-            "address": r.address,
-            "borough": r.borough,
-            "zip": r.zip,
-            "cuisine": r.cuisine,
-            "phone": r.phone,
-            "geom": f"SRID=4326;POINT({r.lon} {r.lat})" if r.lat is not None else None,
-        }
-        for r in batch
-    ]
+    rows = [restaurant_row(cid, r) for r in batch]
     stmt = insert(Restaurant).values(rows)
     stmt = stmt.on_conflict_do_update(
         index_elements=["city_id", "source_id"],
@@ -127,5 +131,6 @@ def load(
         load_batch(session, cid, batch)
         count += len(batch)
     session.execute(REFRESH_LATEST, {"city_id": cid})
+    refresh_food(session, city_id=cid)
     session.commit()
     return count
