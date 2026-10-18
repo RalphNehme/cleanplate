@@ -20,6 +20,7 @@ class InspectionRecord:
     raw_grade: str | None
     rating: str | None
     violations: list[ViolationRecord] = field(default_factory=list)
+    hygiene_score: int | None = None
 
 
 @dataclass

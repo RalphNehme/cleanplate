@@ -5,7 +5,7 @@ from itertools import groupby
 import httpx
 
 from pipeline.adapters.base import InspectionRecord, RestaurantRecord, ViolationRecord
-from pipeline.normalize import clean_text, nyc_rating, title_name
+from pipeline.normalize import clean_text, nyc_hygiene, rating, title_name
 
 URL = "https://data.cityofnewyork.us/resource/43nn-pn8j.json"
 FIELDS = (
@@ -93,6 +93,7 @@ def parse_inspections(rows: Iterable[dict]) -> list[InspectionRecord]:
         score = next((s for r in group if (s := _int(r.get("score"))) is not None), None)
         grade = next((r["grade"] for r in group if r.get("grade")), None)
         action = next((r["action"] for r in group if r.get("action")), None)
+        hygiene = nyc_hygiene(score, action)
         seen, violations = set(), []
         for r in group:
             code = r.get("violation_code")
@@ -113,8 +114,9 @@ def parse_inspections(rows: Iterable[dict]) -> list[InspectionRecord]:
                 action=action,
                 raw_score=score,
                 raw_grade=grade,
-                rating=nyc_rating(score, grade, action),
+                rating=rating(hygiene),
                 violations=violations,
+                hygiene_score=hygiene,
             )
         )
     return inspections

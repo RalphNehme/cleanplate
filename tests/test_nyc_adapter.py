@@ -60,10 +60,10 @@ def test_groups_violation_rows_into_inspections():
 
     old, new = r.inspections
     assert new.inspected_at == date(2025, 3, 1)
-    assert (new.raw_score, new.raw_grade, new.rating) == (12, "A", "good")
+    assert (new.raw_score, new.raw_grade, new.hygiene_score, new.rating) == (12, "A", 86, "good")
     assert [v.code for v in new.violations] == ["04L", "10F"]
     assert new.violations[0].critical and not new.violations[1].critical
-    assert old.rating == "concerning"
+    assert (old.hygiene_score, old.rating) == (30, "concerning")
 
 
 def test_skips_uninspected_and_bad_coordinates():

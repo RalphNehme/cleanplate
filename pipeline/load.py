@@ -8,29 +8,40 @@ from app.models import City, Inspection, Restaurant, Violation
 from pipeline.adapters.base import RestaurantRecord
 
 REFRESH_LATEST = text("""
-WITH last_rated AS (
-    SELECT DISTINCT ON (i.restaurant_id)
-           i.restaurant_id, i.inspected_at, i.raw_score, i.rating
-    FROM inspections i JOIN restaurants r ON r.id = i.restaurant_id
-    WHERE r.city_id = :city_id AND i.rating IS NOT NULL
-    ORDER BY i.restaurant_id, i.inspected_at DESC, i.id DESC
+WITH city_inspections AS (
+    SELECT i.* FROM inspections i JOIN restaurants r ON r.id = i.restaurant_id
+    WHERE r.city_id = :city_id
+),
+last_scored AS (
+    SELECT DISTINCT ON (restaurant_id) restaurant_id, raw_score, hygiene_score
+    FROM city_inspections WHERE hygiene_score IS NOT NULL
+    ORDER BY restaurant_id, inspected_at DESC, id DESC
 ),
 last_graded AS (
-    SELECT DISTINCT ON (i.restaurant_id) i.restaurant_id, i.raw_grade
-    FROM inspections i JOIN restaurants r ON r.id = i.restaurant_id
-    WHERE r.city_id = :city_id AND i.raw_grade IS NOT NULL
-    ORDER BY i.restaurant_id, i.inspected_at DESC, i.id DESC
+    SELECT DISTINCT ON (restaurant_id) restaurant_id, raw_grade
+    FROM city_inspections WHERE raw_grade IS NOT NULL
+    ORDER BY restaurant_id, inspected_at DESC, id DESC
+),
+last_any AS (
+    SELECT DISTINCT ON (restaurant_id) restaurant_id, inspected_at, action
+    FROM city_inspections
+    ORDER BY restaurant_id, inspected_at DESC, id DESC
 )
 UPDATE restaurants r
-SET latest_score = lr.raw_score,
-    latest_rating = CASE lg.raw_grade
-        WHEN 'A' THEN 'good' WHEN 'B' THEN 'ok' WHEN 'C' THEN 'concerning'
-        ELSE lr.rating END,
-    latest_inspected_at = lr.inspected_at,
-    latest_grade = lg.raw_grade
+SET hygiene_score = ls.hygiene_score,
+    latest_score = ls.raw_score,
+    latest_rating = CASE WHEN ls.hygiene_score >= 85 THEN 'good'
+                         WHEN ls.hygiene_score >= 70 THEN 'ok'
+                         WHEN ls.hygiene_score IS NOT NULL THEN 'concerning' END,
+    latest_grade = lg.raw_grade,
+    latest_inspected_at = la.inspected_at,
+    active = la.restaurant_id IS NULL OR (
+        la.inspected_at >= current_date - interval '3 years'
+        AND coalesce(la.action, '') NOT IN ('Out of Business', 'Business Not Located'))
 FROM restaurants r2
-LEFT JOIN last_rated lr ON lr.restaurant_id = r2.id
+LEFT JOIN last_scored ls ON ls.restaurant_id = r2.id
 LEFT JOIN last_graded lg ON lg.restaurant_id = r2.id
+LEFT JOIN last_any la ON la.restaurant_id = r2.id
 WHERE r.id = r2.id AND r.city_id = :city_id
 """)
 
@@ -75,6 +86,7 @@ def load_batch(session: Session, cid: int, batch: list[RestaurantRecord]) -> Non
                     "raw_score": i.raw_score,
                     "raw_grade": i.raw_grade,
                     "rating": i.rating,
+                    "hygiene_score": i.hygiene_score,
                 }
             )
     if not insp_rows:
@@ -82,7 +94,10 @@ def load_batch(session: Session, cid: int, batch: list[RestaurantRecord]) -> Non
     stmt = insert(Inspection).values(insp_rows)
     stmt = stmt.on_conflict_do_update(
         index_elements=["restaurant_id", "inspected_at", "type"],
-        set_={c: stmt.excluded[c] for c in ("action", "raw_score", "raw_grade", "rating")},
+        set_={
+            c: stmt.excluded[c]
+            for c in ("action", "raw_score", "raw_grade", "rating", "hygiene_score")
+        },
     ).returning(Inspection.id, Inspection.restaurant_id, Inspection.inspected_at, Inspection.type)
     insp_ids = {(rid, d, t): iid for iid, rid, d, t in session.execute(stmt)}
 

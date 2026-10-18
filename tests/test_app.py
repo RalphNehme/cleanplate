@@ -39,8 +39,11 @@ def client():
                 "C",
                 "concerning",
                 [ViolationRecord("04L", "Mice", True)],
+                hygiene_score=67,
             ),
-            InspectionRecord(date(2024, 6, 1), "Re-inspection", None, 9, "A", "good", []),
+            InspectionRecord(
+                date(2024, 6, 1), "Re-inspection", None, 9, "A", "good", [], hygiene_score=90
+            ),
         ],
     )
     with SessionLocal() as session:
@@ -62,11 +65,14 @@ def test_load_is_idempotent_and_sets_latest(client):
             text("SELECT count(*) FROM inspections WHERE restaurant_id = :r"), {"r": rid}
         )
         latest = session.execute(
-            text("SELECT latest_grade, latest_score, latest_rating FROM restaurants WHERE id = :r"),
+            text(
+                "SELECT latest_grade, latest_score, hygiene_score, latest_rating, active "
+                "FROM restaurants WHERE id = :r"
+            ),
             {"r": rid},
         ).one()
     assert n == 2
-    assert tuple(latest) == ("A", 9, "good")
+    assert tuple(latest) == ("A", 9, 90, "good", True)
 
 
 def test_pages(client):
