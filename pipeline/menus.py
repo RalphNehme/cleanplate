@@ -1,3 +1,4 @@
+import asyncio
 import hashlib
 import io
 import logging
@@ -161,37 +162,47 @@ def fetch_menu(fetcher: Fetcher, website: str) -> MenuResult:
     return choose(pages, url, render)
 
 
-def render_menus(fetcher: Fetcher, results: dict[int, MenuResult]) -> None:
-    from playwright.sync_api import Error as PlaywrightError
-    from playwright.sync_api import sync_playwright
-
+def render_menus(fetcher: Fetcher, results: dict[int, MenuResult], tabs: int = 8) -> None:
     todo = {rid: r for rid, r in results.items() if r.status == "not_found" and r.render}
-    if not todo:
-        return
-    with sync_playwright() as pw:
-        browser = pw.chromium.launch()
-        context = browser.new_context(user_agent=USER_AGENT)
-        page = context.new_page()
-        for rid, result in todo.items():
+    if todo:
+        asyncio.run(_render_all(fetcher, results, todo, tabs))
+
+
+async def _render_all(fetcher: Fetcher, results, todo, tabs: int) -> None:
+    from playwright.async_api import Error as PlaywrightError
+    from playwright.async_api import async_playwright
+
+    async def render(context, sem, rid: int, result: MenuResult) -> None:
+        async with sem:
+            page = await context.new_page()
             pages = []
-            for url in result.render:
-                if not fetcher.allowed(url):
-                    continue
-                try:
-                    page.goto(url, wait_until="networkidle", timeout=25_000)
-                except PlaywrightError:
+            try:
+                for url in result.render:
+                    if not await asyncio.to_thread(fetcher.allowed, url):
+                        continue
                     try:
-                        page.wait_for_load_state("load", timeout=5_000)
+                        await page.goto(url, wait_until="networkidle", timeout=15_000)
+                    except PlaywrightError:
+                        try:
+                            await page.wait_for_load_state("load", timeout=3_000)
+                        except PlaywrightError:
+                            continue
+                    try:
+                        pages.append((page.url, html_text(await page.content())))
                     except PlaywrightError:
                         continue
-                try:
-                    pages.append((page.url, html_text(page.content())))
-                except PlaywrightError:
-                    continue
+            finally:
+                await page.close()
             rendered = choose(pages, result.url, [])
             if rendered.status == "ok":
                 results[rid] = rendered
-        browser.close()
+
+    async with async_playwright() as pw:
+        browser = await pw.chromium.launch()
+        context = await browser.new_context(user_agent=USER_AGENT)
+        sem = asyncio.Semaphore(tabs)
+        await asyncio.gather(*(render(context, sem, rid, r) for rid, r in todo.items()))
+        await browser.close()
 
 
 CANDIDATES = text("""
@@ -225,7 +236,7 @@ def save(session: Session, rid: int, result: MenuResult) -> None:
     session.execute(stmt)
 
 
-def fetch_city(session: Session, city_id: int, limit: int, workers: int = 8) -> dict[str, int]:
+def fetch_city(session: Session, city_id: int, limit: int, workers: int = 16) -> dict[str, int]:
     rows = session.execute(CANDIDATES, {"cid": city_id, "limit": limit}).all()
 
     def work(row):
