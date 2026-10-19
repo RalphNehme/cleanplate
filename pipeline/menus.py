@@ -3,6 +3,7 @@ import hashlib
 import io
 import logging
 import re
+import time
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field
 from urllib.parse import urljoin, urlparse
@@ -21,6 +22,7 @@ from pipeline.osm import USER_AGENT
 MAX_BYTES = 5_000_000
 MAX_CHARS = 30_000
 MIN_SIGNAL = 30
+RENDER_SECONDS = 45
 MENU_LINK = re.compile(r"menu|food|eat|dinner|lunch|brunch|breakfast", re.I)
 SKIP_LINK = re.compile(
     r"instagram|facebook|twitter|tiktok|yelp|google|mailto:|tel:|reserv|opentable|resy|"
@@ -62,12 +64,39 @@ def menu_signal(value: str) -> int:
     return len(FOOD.findall(value)) + 2 * len(PRICE.findall(value))
 
 
+@dataclass
+class Page:
+    url: str
+    headers: httpx.Headers
+    content: bytes
+    encoding: str | None
+
+    @property
+    def text(self) -> str:
+        return self.content.decode(self.encoding or "utf-8", errors="replace")
+
+
 class Fetcher:
     def __init__(self, client: httpx.Client | None = None):
         self.client = client or httpx.Client(
-            headers={"User-Agent": USER_AGENT}, timeout=20, follow_redirects=True
+            headers={"User-Agent": USER_AGENT}, timeout=15, follow_redirects=True
         )
         self.robots: dict[str, RobotFileParser] = {}
+
+    def download(self, url: str, max_bytes: int = MAX_BYTES, seconds: float = 30) -> Page:
+        """GET with a total time and size cap; slow or endless responses are cut off."""
+        deadline = time.monotonic() + seconds
+        with self.client.stream("GET", url) as resp:
+            resp.raise_for_status()
+            chunks, size = [], 0
+            for chunk in resp.iter_bytes():
+                chunks.append(chunk)
+                size += len(chunk)
+                if size > max_bytes:
+                    raise ValueError("response too large")
+                if time.monotonic() > deadline:
+                    raise ValueError("download too slow")
+            return Page(str(resp.url), resp.headers, b"".join(chunks), resp.charset_encoding)
 
     def allowed(self, url: str) -> bool:
         if DELIVERY.search(urlparse(url).netloc):
@@ -77,21 +106,17 @@ class Fetcher:
         if root not in self.robots:
             parser = RobotFileParser()
             try:
-                resp = self.client.get(f"{root}/robots.txt")
-                parser.parse(resp.text.splitlines() if resp.status_code == 200 else [])
-            except httpx.HTTPError:
+                page = self.download(f"{root}/robots.txt", max_bytes=500_000, seconds=10)
+                parser.parse(page.text.splitlines())
+            except (httpx.HTTPError, ValueError):
                 parser.parse([])
             self.robots[root] = parser
         return self.robots[root].can_fetch(USER_AGENT, url)
 
-    def get(self, url: str) -> httpx.Response | None:
+    def get(self, url: str) -> Page | None:
         if not self.allowed(url):
             return None
-        resp = self.client.get(url)
-        resp.raise_for_status()
-        if len(resp.content) > MAX_BYTES:
-            raise ValueError("response too large")
-        return resp
+        return self.download(url)
 
 
 def html_text(html: str) -> str:
@@ -102,7 +127,7 @@ def html_text(html: str) -> str:
     return "\n".join(line for line in lines if line)
 
 
-def page_text(resp: httpx.Response) -> tuple[str, BeautifulSoup | None]:
+def page_text(resp: Page) -> tuple[str, BeautifulSoup | None]:
     kind = resp.headers.get("content-type", "")
     if "pdf" in kind or str(resp.url).lower().endswith(".pdf"):
         reader = PdfReader(io.BytesIO(resp.content))
@@ -172,27 +197,35 @@ async def _render_all(fetcher: Fetcher, results, todo, tabs: int) -> None:
     from playwright.async_api import Error as PlaywrightError
     from playwright.async_api import async_playwright
 
+    async def visit(page, result: MenuResult, pages: list) -> None:
+        for url in result.render:
+            if not await asyncio.to_thread(fetcher.allowed, url):
+                continue
+            try:
+                await page.goto(url, wait_until="networkidle", timeout=15_000)
+            except PlaywrightError:
+                try:
+                    await page.wait_for_load_state("load", timeout=3_000)
+                except PlaywrightError:
+                    continue
+            try:
+                pages.append((page.url, html_text(await page.content())))
+            except PlaywrightError:
+                continue
+
     async def render(context, sem, rid: int, result: MenuResult) -> None:
         async with sem:
             page = await context.new_page()
-            pages = []
+            pages: list = []
             try:
-                for url in result.render:
-                    if not await asyncio.to_thread(fetcher.allowed, url):
-                        continue
-                    try:
-                        await page.goto(url, wait_until="networkidle", timeout=15_000)
-                    except PlaywrightError:
-                        try:
-                            await page.wait_for_load_state("load", timeout=3_000)
-                        except PlaywrightError:
-                            continue
-                    try:
-                        pages.append((page.url, html_text(await page.content())))
-                    except PlaywrightError:
-                        continue
+                await asyncio.wait_for(visit(page, result, pages), RENDER_SECONDS)
+            except (TimeoutError, PlaywrightError):
+                pass
             finally:
-                await page.close()
+                try:
+                    await asyncio.wait_for(page.close(), 5)
+                except (TimeoutError, PlaywrightError):
+                    pass
             rendered = choose(pages, result.url, [])
             if rendered.status == "ok":
                 results[rid] = rendered
@@ -236,19 +269,22 @@ def save(session: Session, rid: int, result: MenuResult) -> None:
     session.execute(stmt)
 
 
-def fetch_city(session: Session, city_id: int, limit: int, workers: int = 16) -> dict[str, int]:
+def fetch_city(
+    session: Session, city_id: int, limit: int, workers: int = 16, chunk: int = 50
+) -> dict[str, int]:
     rows = session.execute(CANDIDATES, {"cid": city_id, "limit": limit}).all()
 
     def work(row):
         return row.id, fetch_menu(Fetcher(), row.website)
 
-    with ThreadPoolExecutor(workers) as pool:
-        results = dict(pool.map(work, rows))
-    render_menus(Fetcher(), results)
-
     counts: dict[str, int] = {}
-    for rid, result in results.items():
-        save(session, rid, result)
-        counts[result.status] = counts.get(result.status, 0) + 1
-    session.commit()
+    with ThreadPoolExecutor(workers) as pool:
+        for start in range(0, len(rows), chunk):
+            results = dict(pool.map(work, rows[start : start + chunk]))
+            render_menus(Fetcher(), results)
+            for rid, result in results.items():
+                save(session, rid, result)
+                counts[result.status] = counts.get(result.status, 0) + 1
+            session.commit()
+            log.info("%d/%d sites checked: %s", min(start + chunk, len(rows)), len(rows), counts)
     return counts
