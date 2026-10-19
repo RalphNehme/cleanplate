@@ -17,6 +17,7 @@ depends_on = None
 
 def upgrade() -> None:
     op.drop_column("restaurants", "food_estimate")
+    op.alter_column("restaurants", "food_source", type_=sa.String(20))
     op.add_column("restaurants", sa.Column("osm_id", sa.String(30)))
     op.add_column("restaurants", sa.Column("osm_cuisine", sa.String(100)))
     op.add_column("restaurants", sa.Column("diet_tags", sa.String(200)))

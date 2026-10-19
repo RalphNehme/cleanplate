@@ -71,7 +71,7 @@ class Restaurant(Base):
     diet_tags: Mapped[str | None] = mapped_column(String(200))
     website: Mapped[str | None] = mapped_column(String(500))
     food_score: Mapped[int | None] = mapped_column(Integer, index=True)
-    food_source: Mapped[str | None] = mapped_column(String(10))
+    food_source: Mapped[str | None] = mapped_column(String(20))
     food_reports_count: Mapped[int] = mapped_column(Integer, default=0)
     reported_oil: Mapped[str | None] = mapped_column(String(20))
 
