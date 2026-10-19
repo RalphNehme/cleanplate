@@ -14,6 +14,7 @@ from sqlalchemy import (
     UniqueConstraint,
     func,
 )
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 
 
@@ -65,13 +66,18 @@ class Restaurant(Base):
     latest_rating: Mapped[str | None] = mapped_column(String(20))
     latest_inspected_at: Mapped[date | None] = mapped_column(Date)
     hygiene_score: Mapped[int | None] = mapped_column(Integer, index=True)
-    food_estimate: Mapped[int | None] = mapped_column(Integer)
+    osm_id: Mapped[str | None] = mapped_column(String(30))
+    osm_cuisine: Mapped[str | None] = mapped_column(String(100))
+    diet_tags: Mapped[str | None] = mapped_column(String(200))
+    website: Mapped[str | None] = mapped_column(String(500))
     food_score: Mapped[int | None] = mapped_column(Integer, index=True)
     food_source: Mapped[str | None] = mapped_column(String(10))
     food_reports_count: Mapped[int] = mapped_column(Integer, default=0)
     reported_oil: Mapped[str | None] = mapped_column(String(20))
 
     city: Mapped[City] = relationship()
+    menu: Mapped["Menu | None"] = relationship()
+    analysis: Mapped["MenuAnalysis | None"] = relationship()
     inspections: Mapped[list["Inspection"]] = relationship(
         back_populates="restaurant", order_by="Inspection.inspected_at.desc()"
     )
@@ -124,3 +130,36 @@ class FoodReport(Base):
     score: Mapped[int] = mapped_column(Integer)
     reporter_hash: Mapped[str] = mapped_column(String(64))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class Menu(Base):
+    __tablename__ = "menus"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    restaurant_id: Mapped[int] = mapped_column(
+        ForeignKey("restaurants.id", ondelete="CASCADE"), unique=True
+    )
+    status: Mapped[str] = mapped_column(String(20), index=True)
+    url: Mapped[str | None] = mapped_column(String(1000))
+    text: Mapped[str | None] = mapped_column(Text)
+    text_hash: Mapped[str | None] = mapped_column(String(64))
+    detail: Mapped[str | None] = mapped_column(String(300))
+    fetched_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class MenuAnalysis(Base):
+    __tablename__ = "menu_analyses"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    restaurant_id: Mapped[int] = mapped_column(
+        ForeignKey("restaurants.id", ondelete="CASCADE"), unique=True
+    )
+    model: Mapped[str] = mapped_column(String(50))
+    text_hash: Mapped[str] = mapped_column(String(64))
+    score: Mapped[int | None] = mapped_column(Integer)
+    cuisine: Mapped[str | None] = mapped_column(String(100))
+    summary: Mapped[str | None] = mapped_column(Text)
+    data: Mapped[dict] = mapped_column(JSONB)
+    analyzed_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
