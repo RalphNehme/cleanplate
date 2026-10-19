@@ -4,7 +4,7 @@ from sqlalchemy import delete, select, text
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.orm import Session
 
-from app.food import estimate, infer_cuisine, refresh_food
+from app.food import refresh_food
 from app.models import City, Inspection, Restaurant, Violation
 from pipeline.adapters.base import RestaurantRecord
 
@@ -52,7 +52,6 @@ def city_id(session: Session, slug: str) -> int:
 
 
 def restaurant_row(cid: int, r: RestaurantRecord) -> dict:
-    cuisine = r.cuisine or infer_cuisine(r.name)
     return {
         "city_id": cid,
         "source_id": r.source_id,
@@ -60,10 +59,9 @@ def restaurant_row(cid: int, r: RestaurantRecord) -> dict:
         "address": r.address,
         "borough": r.borough,
         "zip": r.zip,
-        "cuisine": cuisine,
+        "cuisine": r.cuisine,
         "phone": r.phone,
         "geom": f"SRID=4326;POINT({r.lon} {r.lat})" if r.lat is not None else None,
-        "food_estimate": estimate(cuisine, r.name),
     }
 
 

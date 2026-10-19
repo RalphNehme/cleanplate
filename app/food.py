@@ -1,77 +1,10 @@
-import re
+from typing import Literal
 
+from pydantic import BaseModel, Field
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 MIN_REPORTS = 3
-DEFAULT_ESTIMATE = 52
-
-# (pattern, estimated food score, cuisine label). First match wins; chains come first.
-RULES = [
-    (r"sweetgreen|just salad|chopt|\bdig\b|salad", 86, "Salads"),
-    (r"juice|smoothie|acai|açaí", 84, "Juice, Smoothies"),
-    (r"\bpoke\b", 82, "Hawaiian"),
-    (r"vegan|vegetarian|plant.based", 84, "Vegetarian"),
-    (r"\bcava\b", 80, "Mediterranean"),
-    (
-        r"mcdonald|burger king|wendy'?s|white castle|jack in the box|checkers|sonic drive|"
-        r"five guys|shake shack|smashburger",
-        30,
-        "Hamburgers",
-    ),
-    (
-        r"popeyes|\bkfc\b|kentucky fried|church'?s chicken|raising cane|wingstop|chick.fil.a",
-        28,
-        "Chicken",
-    ),
-    (r"taco bell", 32, "Tex-Mex"),
-    (r"domino'?s|papa john|little caesar|pizza hut", 33, "Pizza"),
-    (r"dunkin|krispy kreme|donut|doughnut", 28, "Donuts"),
-    (r"subway|jimmy john|jersey mike|potbelly|panera", 50, "Sandwiches"),
-    (r"chipotle", 58, "Mexican"),
-    (
-        r"mediterranean|greek|lebanese|middle eastern|turkish|falafel|israeli|moroccan|persian|"
-        r"afghan|gyro",
-        76,
-        "Mediterranean",
-    ),
-    (r"sushi|omakase", 76, "Japanese"),
-    (r"ramen", 52, "Japanese"),
-    (r"japanese", 72, "Japanese"),
-    (r"vietnamese|\bpho\b|banh mi", 72, "Vietnamese"),
-    (r"ethiopian", 72, "Ethiopian"),
-    (r"korean", 66, "Korean"),
-    (r"spanish|tapas", 68, "Spanish"),
-    (r"seafood|fish|oyster", 68, "Seafood"),
-    (r"peruvian", 62, "Peruvian"),
-    (r"steak", 60, "Steakhouse"),
-    (r"italian|trattoria|osteria|pasta", 60, "Italian"),
-    (r"french|bistro|brasserie", 58, "French"),
-    (r"\bthai\b", 58, "Thai"),
-    (r"indian|tandoor|curry|masala", 56, "Indian"),
-    (r"coffee|cafe|café|\btea\b|espresso", 62, "Coffee/Tea"),
-    (r"taco|taqueria|burrito|mexican|tex.mex", 52, "Mexican"),
-    (r"latin|cuban|colombian|salvadoran|dominican|puerto ric", 52, "Latin American"),
-    (r"caribbean|jamaican|haitian|trinidad", 50, "Caribbean"),
-    (r"filipino", 50, "Filipino"),
-    (r"chinese|wok|dumpling|szechuan|sichuan|hunan|cantonese", 48, "Chinese"),
-    (r"deli\b|delicatessen|sandwich|sub shop|hero", 52, "Sandwiches"),
-    (r"bagel", 48, "Bagels"),
-    (r"bbq|barbecue|barbeque|smokehouse", 46, "Barbecue"),
-    (r"soul food", 40, "Soul Food"),
-    (r"pizza|pizzeria", 42, "Pizza"),
-    (r"burger|hamburger", 36, "Hamburgers"),
-    (r"chicken|wings|fried", 32, "Chicken"),
-    (r"hot ?dog|hotdog", 32, "Hotdogs"),
-    (
-        r"bakery|pastr|dessert|cake|cookie|ice cream|gelato|frozen|creamery|sweets",
-        36,
-        "Bakery/Desserts",
-    ),
-    (r"\bbar\b|tavern|\bpub\b|lounge|saloon|brewery", 44, "Bar"),
-    (r"american|diner|grill", 50, "American"),
-]
-COMPILED = [(re.compile(p, re.I), s, c) for p, s, c in RULES]
 
 OIL_POINTS = {"seed": 20, "olive": 95, "avocado": 95, "animal": 85}
 INGREDIENT_POINTS = {"fresh": 95, "mixed": 65, "processed": 30}
@@ -83,29 +16,71 @@ OIL_LABELS = {
     "olive": "Olive oil",
     "avocado": "Avocado oil",
     "animal": "Butter, ghee or tallow",
+    "mixed": "A mix of oils",
 }
 
 
-CHAINS = COMPILED[:12]
+class OilInfo(BaseModel):
+    stated: Literal["seed", "olive", "avocado", "animal", "mixed", "not_stated"]
+    evidence: str = Field(description="Verbatim menu quote naming the oil or fat, or empty.")
 
 
-def _match(cuisine: str | None, name: str):
-    for rules, text_ in ((CHAINS, name), (COMPILED, cuisine), (COMPILED, name)):
-        if text_:
-            for pattern, score, label in rules:
-                if pattern.search(text_):
-                    return score, label
-    return None
+class Highlight(BaseModel):
+    quote: str = Field(description="Verbatim text copied from the menu, under 120 characters.")
+    effect: Literal["positive", "negative"]
+    reason: str = Field(description="Under 12 words: why this helps or hurts the food score.")
 
 
-def infer_cuisine(name: str) -> str | None:
-    m = _match(None, name)
-    return m[1] if m else None
+class MenuReport(BaseModel):
+    is_restaurant_menu: bool
+    cuisine: str = Field(description="Main cuisine in 1-3 words, e.g. 'Thai', 'Burgers'.")
+    item_count: int
+    fried_share: float = Field(description="0-1: share of savory items deep-fried or battered.")
+    whole_food_share: float = Field(
+        description="0-1: share of items built mainly from minimally processed ingredients."
+    )
+    ultra_processed_share: float = Field(
+        description="0-1: share of items centered on processed meats, pre-made, frozen or "
+        "refined-flour-heavy foods, or sugary drinks."
+    )
+    vegetable_forward_share: float = Field(
+        description="0-1: share of items where vegetables or legumes are a main component."
+    )
+    sweets_share: float = Field(description="0-1: share of items that are desserts or sweets.")
+    quality_markers: list[str] = Field(
+        description="Explicit menu claims such as organic, grass-fed, wild-caught, "
+        "pasture-raised, house-made, scratch-made, local, seed-oil free. Empty if none."
+    )
+    oil: OilInfo
+    highlights: list[Highlight] = Field(description="Up to 6 quotes that drive the score.")
+    summary: str = Field(description="One or two plain sentences about the food's quality.")
 
 
-def estimate(cuisine: str | None, name: str) -> int:
-    m = _match(cuisine, name)
-    return m[0] if m else DEFAULT_ESTIMATE
+def _share(value: float) -> float:
+    return max(0.0, min(1.0, value))
+
+
+def menu_score(r: MenuReport) -> int | None:
+    if not r.is_restaurant_menu or r.item_count < 3:
+        return None
+    s = 50.0
+    s += 30 * _share(r.whole_food_share)
+    s += 10 * _share(r.vegetable_forward_share)
+    s -= 25 * _share(r.fried_share)
+    s -= 20 * _share(r.ultra_processed_share)
+    s -= 10 * _share(r.sweets_share)
+    s += min(10.0, 2.5 * len(r.quality_markers))
+    if r.oil.stated in ("olive", "avocado", "animal"):
+        s += 10
+    elif r.oil.stated == "seed":
+        s -= 15
+    elif r.oil.stated == "not_stated" and r.fried_share > 0.2:
+        s -= 5
+    return max(1, min(100, round(s)))
+
+
+def likely_seed_oil(r: dict) -> bool:
+    return r["oil"]["stated"] == "not_stated" and r["fried_share"] > 0.2
 
 
 def report_score(oil: str | None, ingredients: str | None, healthy: str | None) -> int | None:
@@ -129,11 +104,16 @@ WITH agg AS (
 UPDATE restaurants r
 SET food_reports_count = coalesce(agg.n, 0),
     reported_oil = agg.oil,
-    food_score = CASE WHEN agg.n >= :min THEN agg.score ELSE r.food_estimate END,
-    food_source = CASE WHEN agg.n >= :min THEN 'reports'
-                       WHEN r.food_estimate IS NOT NULL THEN 'estimate' END
+    cuisine = coalesce(r.cuisine, r.osm_cuisine, ma.cuisine),
+    food_score = CASE WHEN ma.score IS NULL THEN NULL
+                      WHEN agg.n >= :min THEN round((ma.score + agg.score) / 2.0)
+                      ELSE ma.score END,
+    food_source = CASE WHEN ma.score IS NULL THEN NULL
+                       WHEN agg.n >= :min THEN 'menu+reports'
+                       ELSE 'menu' END
 FROM restaurants r2
 LEFT JOIN agg ON agg.restaurant_id = r2.id
+LEFT JOIN menu_analyses ma ON ma.restaurant_id = r2.id
 WHERE r.id = r2.id AND {where}
 """
 
