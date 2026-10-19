@@ -249,14 +249,19 @@ LIMIT :limit
 """)
 
 
+def _clean(value: str | None) -> str | None:
+    return value.replace("\x00", "") if value else value
+
+
 def save(session: Session, rid: int, result: MenuResult) -> None:
+    menu_text = _clean(result.text)
     values = {
         "restaurant_id": rid,
         "status": result.status,
-        "url": (result.url or "")[:1000] or None,
-        "text": result.text,
-        "text_hash": hashlib.sha256(result.text.encode()).hexdigest() if result.text else None,
-        "detail": result.detail,
+        "url": _clean(result.url or "")[:1000] or None,
+        "text": menu_text,
+        "text_hash": hashlib.sha256(menu_text.encode()).hexdigest() if menu_text else None,
+        "detail": _clean(result.detail),
     }
     stmt = insert(Menu).values(values)
     stmt = stmt.on_conflict_do_update(

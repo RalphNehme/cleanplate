@@ -116,3 +116,10 @@ def test_make_client_uses_env_file_key_and_drops_empty_env_key(monkeypatch):
     monkeypatch.setenv("ANTHROPIC_AUTH_TOKEN", "token-from-login")
     analyze.make_client()
     assert "ANTHROPIC_API_KEY" not in analyze.os.environ
+
+
+def test_clean_strips_nul_bytes():
+    from pipeline.menus import _clean
+
+    assert _clean("menu\x00 text") == "menu text"
+    assert _clean(None) is None
