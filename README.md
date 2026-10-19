@@ -1,30 +1,31 @@
 # CleanPlate
 
-How clean is that restaurant? CleanPlate gives every restaurant in New York City and Chicago two scores from 1 to 100, where higher is better: a **hygiene score** built from official health inspections and a **food score** for how healthy the food is.
+How good is the food, really? CleanPlate reads each restaurant's actual menu and gives it a **food score** from 1 to 100: fresh whole ingredients score high, while deep-fried, ultra-processed and seed-oil cooking score low. A smaller **hygiene score** from official health inspections sits alongside. Cities: New York City and Chicago.
 
-**Stack:** Python · FastAPI · PostgreSQL + PostGIS · SQLAlchemy · Alembic · HTMX · MapLibre GL · Chart.js · Docker · GitHub Actions
+**Stack:** Python · FastAPI · PostgreSQL + PostGIS · SQLAlchemy · Alembic · Claude API (Haiku 5.5) · Playwright · HTMX · MapLibre GL · Chart.js · Docker · GitHub Actions
 
 ## Features
-- City picker homepage, then a map, search and stats page for each city (~31,000 NYC and ~9,400 open Chicago restaurants)
-- Vector map (MapLibre + OpenFreeMap) with clusters colored by their average hygiene score
-- **Hygiene score:** NYC violation points and Chicago violation severity converted to one 1–100 scale, with the official grade (A/B/C or Pass/Fail) shown alongside
-- **Food score:** estimated from cuisine and name until 3 visitors report on cooking oil, ingredients and healthy options. Seed oils lower the score.
-- Fuzzy name search (Postgres trigram index), filters for area, cuisine, hygiene and food bands, and "no seed oils"
-- "Near me" via PostGIS distance queries
-- Restaurant pages with hygiene history, every violation cited and a visitor report form
+- **Menu-based food score:** Claude reads each restaurant's menu and reports the share of fried, ultra-processed, sweet, whole-food and vegetable-forward dishes, quality claims ("organic", "grass-fed", "house-made") and any cooking oil named. A fixed formula turns that report into the score. Every score shows the quoted menu lines behind it.
+- **No guesses:** restaurants without a readable menu aren't scored or listed
+- **Visitor reports:** with 3 or more reports on oil, ingredients and healthy options, visitors count for half of the score
+- **Hygiene score:** NYC violation points and Chicago violation severity converted to 1–100, next to the official grade
+- City picker homepage, then a map, search and stats for each city
+- Vector map (MapLibre + OpenFreeMap) with clusters colored by average food score
+- Filters for area, cuisine, food and hygiene bands, and "no seed oils"
 - JSON API: `/api/cities`, `/api/{city}/search`, `/api/{city}/points`, `/api/{city}/stats`, `/api/restaurants/{id}`
 
-See [How scores work](app/templates/scores.html) (served at `/scores`) for the exact formulas.
+See `/scores` on the site for the exact formulas.
 
 ## How it works
 ```
-NYC Open Data ──► pipeline/adapters/nyc.py ─┐
-                                             ├─► pipeline/load.py ──► Postgres + PostGIS
-Chicago Data  ──► pipeline/adapters/chicago.py┘   upserts, scores,          │
-                                                   food estimates            ▼
-                                                              FastAPI (app/) ──► pages + JSON API
+NYC / Chicago open data ──► pipeline.run      inspections, hygiene scores ─┐
+OpenStreetMap (Overpass) ─► pipeline.food osm  real cuisine, diet tags, websites
+Restaurant websites ──────► pipeline.food menus  HTML/PDF menus, Playwright for JS sites
+Claude Haiku 5.5 ─────────► pipeline.food analyze  structured menu report ──► food score
+                                                                            ▼
+                                                     Postgres + PostGIS ──► FastAPI pages + JSON API
 ```
-Each city is a small adapter that outputs the same normalized records with a 1–100 hygiene score, so adding a city doesn't touch the database or the website.
+The menu fetcher respects robots.txt and never fetches delivery marketplaces. Identical chain menus are analyzed once, and large runs can use the Message Batches API at half price.
 
 ## Run locally
 Requires Docker and Python 3.12.
@@ -32,17 +33,15 @@ Requires Docker and Python 3.12.
 ```bash
 docker compose up -d db
 python -m venv .venv && .venv/Scripts/pip install -r requirements-dev.txt   # macOS/Linux: .venv/bin/pip
-cp .env.example .env
+.venv/Scripts/python -m playwright install chromium
+cp .env.example .env                       # add ANTHROPIC_API_KEY, or run `ant auth login`
 alembic upgrade head
-python -m pipeline.run --city nyc --full       # ~3 min
-python -m pipeline.run --city chicago --full   # ~2 min
-docker compose up -d --build web               # http://localhost:8000
-```
-
-Nightly refresh (re-reads the last 120 days, since results change after re-inspections):
-```bash
-python -m pipeline.run --city nyc
-python -m pipeline.run --city chicago
+python -m pipeline.run --city nyc --full
+python -m pipeline.run --city chicago --full
+python -m pipeline.food osm --city chicago
+python -m pipeline.food menus --city chicago --limit 500
+python -m pipeline.food analyze --city chicago --limit 200        # add --batch for big runs
+docker compose up -d --build web           # http://localhost:8000
 ```
 
 Tests and lint:
@@ -52,14 +51,15 @@ ruff check . && ruff format --check .
 ```
 
 ## Roadmap
-- [ ] "Ask the Inspector": plain-English questions answered from the database
-- [ ] AWS deployment: Terraform, ECS Fargate, RDS, scheduled pipeline task, CD on push
-- [ ] Email alerts when a followed restaurant's score drops
+- [ ] Full menu run for both cities, then a monthly refresh of changed menus
+- [ ] AWS deployment: Terraform, ECS Fargate, RDS, scheduled pipeline tasks, CD on push
+- [ ] Email alerts when a followed restaurant's score changes
 - [ ] More cities
 
 ## Data
 - New York City: NYC Department of Health and Mental Hygiene, [Restaurant Inspection Results](https://data.cityofnewyork.us/Health/DOHMH-New-York-City-Restaurant-Inspection-Results/43nn-pn8j)
 - Chicago: Chicago Department of Public Health, [Food Inspections](https://data.cityofchicago.org/Health-Human-Services/Food-Inspections/4ijn-s7e5) (July 2018 onward)
+- Restaurant cuisines and websites: © OpenStreetMap contributors (ODbL)
 - Map: © OpenStreetMap contributors, tiles by OpenFreeMap
 
-Hygiene and food scores are CleanPlate's own, not official ratings. CleanPlate is independent and not affiliated with any city government.
+Food scores are AI readings of published menus and can be wrong; hygiene scores are CleanPlate's conversion of official inspections. Neither is an official rating. CleanPlate is independent and not affiliated with any city government.
