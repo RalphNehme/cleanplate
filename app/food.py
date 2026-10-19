@@ -46,7 +46,9 @@ class MenuReport(BaseModel):
     vegetable_forward_share: float = Field(
         description="0-1: share of items where vegetables or legumes are a main component."
     )
-    sweets_share: float = Field(description="0-1: share of items that are desserts or sweets.")
+    sweets_share: float = Field(
+        description="0-1: share of items that are desserts, sweets or sugary drinks."
+    )
     quality_markers: list[str] = Field(
         description="Explicit menu claims such as organic, grass-fed, wild-caught, "
         "pasture-raised, house-made, scratch-made, local, seed-oil free. Empty if none."

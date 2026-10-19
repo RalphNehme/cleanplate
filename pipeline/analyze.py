@@ -16,6 +16,8 @@ from app.food import MenuReport, menu_score, refresh_food
 from app.models import MenuAnalysis
 
 MODEL = "claude-haiku-5-5"
+# Bump when the prompt or schema changes so existing analyses are redone.
+ANALYZER = f"{MODEL}/v2"
 MAX_TOKENS = 8000
 # USD per million tokens for claude-haiku-5-5 (prompts under 100K tokens); batches cost half.
 PRICE_IN, PRICE_OUT = 0.10, 0.50
@@ -31,7 +33,8 @@ count as deep-fried.
 - Cooking oil: set oil.stated only when the menu names the oil or fat used (e.g. "fried in \
 beef tallow", "extra virgin olive oil", "seed-oil free", "canola"). Otherwise use "not_stated". \
 "Seed-oil free" without naming the fat counts as "mixed".
-- Shares are fractions from 0 to 1 of the menu's items.
+- Shares are fractions from 0 to 1 of the menu's items. Sweetened drinks, smoothies, shakes, \
+frappes and juices with added sugar count toward sweets_share.
 - Quality markers and highlight quotes must be copied verbatim from the menu text.
 - If the text is not a food menu (e.g. a homepage with no dishes), set is_restaurant_menu to \
 false and keep other fields minimal."""
@@ -107,7 +110,7 @@ def parse_message(message) -> MenuReport | None:
 def save(session: Session, rid: int, text_hash: str, report: MenuReport) -> None:
     values = {
         "restaurant_id": rid,
-        "model": MODEL,
+        "model": ANALYZER,
         "text_hash": text_hash,
         "score": menu_score(report),
         "cuisine": report.cuisine[:100] if report.is_restaurant_menu else None,
@@ -131,7 +134,7 @@ def cost(input_tokens: int, output_tokens: int, batch: bool) -> float:
 
 
 def analyze_city(session: Session, city_id: int, limit: int, batch: bool, workers: int = 6):
-    rows = session.execute(PENDING, {"cid": city_id, "limit": limit, "model": MODEL}).all()
+    rows = session.execute(PENDING, {"cid": city_id, "limit": limit, "model": ANALYZER}).all()
     if not rows:
         return {"analyzed": 0, "failed": 0, "cost": 0.0}
 
@@ -143,7 +146,7 @@ def analyze_city(session: Session, city_id: int, limit: int, batch: bool, worker
                 "SELECT DISTINCT ON (text_hash) text_hash, data FROM menu_analyses "
                 "WHERE model = :model AND text_hash = ANY(:hashes)"
             ),
-            {"model": MODEL, "hashes": list({r.text_hash for r in rows})},
+            {"model": ANALYZER, "hashes": list({r.text_hash for r in rows})},
         )
     }
     unique = {}
