@@ -1,6 +1,11 @@
-{% macro ring(score, size="h-11 w-11 text-base", estimated=False) -%}
+{% macro ring(score, size="h-11 w-11 text-base") -%}
 {%- set b = band(score) -%}
-<span class="score-ring s-{{ b.key }} {{ size }}{% if estimated %} est{% endif %}" title="{{ b.label }}{% if estimated %} (estimated){% endif %}">{{ score if score is not none else "–" }}</span>
+<span class="score-ring s-{{ b.key }} {{ size }}" title="{{ b.label }}">{{ score if score is not none else "–" }}</span>
+{%- endmacro %}
+
+{% macro hygiene_chip(score) -%}
+{%- set b = band(score) -%}
+<span class="chip s-{{ b.key }}" title="Hygiene score from health inspections">Hygiene {{ score if score is not none else "–" }}</span>
 {%- endmacro %}
 
 {% macro official(value, city) -%}

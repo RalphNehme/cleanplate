@@ -1,26 +1,72 @@
 {% from "macros.html" import ring %}
+{% set a = r.analysis.data if r.analysis else none %}
 <section id="food" class="rounded-2xl border border-stone-200 bg-white p-5">
-  <div class="flex items-start gap-4">
-    {{ ring(r.food_score, "h-16 w-16 text-2xl", estimated=r.food_source != "reports") }}
-    <div class="flex-1">
-      <h2 class="text-lg font-semibold">Food score</h2>
-      {% if r.food_source == "reports" %}
-      <p class="text-sm text-stone-600">Based on {{ r.food_reports_count }} visitor reports.</p>
-      {% else %}
-      <p class="text-sm text-stone-600">
-        <strong>Estimated</strong> from the type of restaurant{% if r.cuisine %} ({{ r.cuisine }}){% endif %}.
-        {% if r.food_reports_count %}{{ r.food_reports_count }} of {{ min_reports }} reports needed to replace the estimate.
-        {% else %}{{ min_reports }} visitor reports replace the estimate.{% endif %}
+  {% if r.food_score is not none and a %}
+  <div class="flex flex-col gap-5 sm:flex-row">
+    <div class="flex items-center gap-4 sm:flex-col sm:items-start">
+      {{ ring(r.food_score, "h-24 w-24 text-4xl") }}
+      <div>
+        <div class="text-sm font-semibold">Food score</div>
+        <div class="text-xs text-stone-500">
+          {% if r.food_source == "menu+reports" %}Menu + {{ r.food_reports_count }} visitor reports{% else %}From the menu{% endif %}
+        </div>
+      </div>
+    </div>
+    <div class="min-w-0 flex-1 space-y-3">
+      <p class="text-stone-700">{{ a.summary }}</p>
+
+      <div class="flex flex-wrap gap-2 text-xs">
+        {% set oil = a.oil.stated %}
+        {% if oil in ("olive", "avocado", "animal") %}
+        <span class="chip s-excellent">Cooks with {{ oil_labels[oil] | lower }}</span>
+        {% elif oil == "seed" %}
+        <span class="chip s-poor">Cooks with seed oils</span>
+        {% elif oil == "mixed" %}
+        <span class="chip s-fair">{{ oil_labels.mixed }}</span>
+        {% elif likely_seed_oil(a) %}
+        <span class="chip s-fair" title="The menu doesn't name its frying oil; most fryers use seed oils.">Fried items, oil not stated (likely seed oil)</span>
+        {% else %}
+        <span class="chip s-none">Oil not stated on menu</span>
+        {% endif %}
+        {% if r.reported_oil %}<span class="chip s-none">Visitors report: {{ oil_labels[r.reported_oil] }}</span>{% endif %}
+        {% for m in a.quality_markers[:6] %}<span class="chip s-good">{{ m }}</span>{% endfor %}
+      </div>
+
+      <dl class="grid grid-cols-2 gap-x-6 gap-y-1 text-sm sm:grid-cols-3">
+        {% for label, key, good in [("Whole foods", "whole_food_share", true), ("Vegetable-forward", "vegetable_forward_share", true), ("Deep-fried", "fried_share", false), ("Ultra-processed", "ultra_processed_share", false), ("Sweets", "sweets_share", false)] %}
+        <div class="flex justify-between gap-2 border-b border-stone-100 py-1">
+          <dt class="text-stone-500">{{ label }}</dt>
+          <dd class="font-semibold {{ 'text-green-700' if good else 'text-red-700' }}">{{ (a[key] * 100) | round | int }}%</dd>
+        </div>
+        {% endfor %}
+      </dl>
+
+      {% if a.highlights %}
+      <ul class="space-y-1.5 text-sm">
+        {% for h in a.highlights %}
+        <li class="flex gap-2">
+          <span class="shrink-0 font-bold {{ 'text-green-700' if h.effect == 'positive' else 'text-red-700' }}">{{ "+" if h.effect == "positive" else "–" }}</span>
+          <span><q class="italic">{{ h.quote }}</q> <span class="text-stone-500">· {{ h.reason }}</span></span>
+        </li>
+        {% endfor %}
+      </ul>
+      {% endif %}
+
+      <p class="text-xs text-stone-500">
+        Analyzed by AI ({{ r.analysis.model }}) from
+        <a class="underline" href="{{ r.menu.url }}" rel="nofollow noopener" target="_blank">the restaurant's menu</a>
+        on {{ r.analysis.analyzed_at.strftime("%b %d, %Y") }}. Menus change; AI can make mistakes.
       </p>
-      {% endif %}
-      {% if r.reported_oil %}
-      <p class="mt-2 text-sm">Visitors report cooking with: <strong>{{ oil_labels[r.reported_oil] }}</strong></p>
-      {% endif %}
     </div>
   </div>
+  {% else %}
+  <h2 class="text-lg font-semibold">Food score</h2>
+  <p class="text-sm text-stone-600">We couldn't read this restaurant's menu yet, so it has no food score.</p>
+  {% endif %}
 
   <details class="mt-4 rounded-xl bg-stone-50 p-4" {% if message %}open{% endif %}>
     <summary class="cursor-pointer text-sm font-semibold">Eaten here? Report what you saw</summary>
+    <p class="mt-2 text-xs text-stone-500">With {{ min_reports }} or more reports, visitors count for half of the food score.</p>
     <form class="mt-3 space-y-3" hx-post="/r/{{ r.id }}/report" hx-target="#food" hx-swap="outerHTML">
       <fieldset>
         <legend class="mb-1 text-sm font-medium">What do they cook with?</legend>

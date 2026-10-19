@@ -117,7 +117,7 @@ map.on("load", async () => {
     const name = document.createElement("strong");
     name.textContent = n;
     const scores = document.createElement("span");
-    scores.textContent = `Hygiene ${s ?? "–"} · Food ${f ?? "–"}`;
+    scores.textContent = `Food ${s ?? "–"} · Hygiene ${f ?? "–"}`;
     node.append(name, scores);
     popup.setLngLat(e.features[0].geometry.coordinates).setDOMContent(node).addTo(map);
   });

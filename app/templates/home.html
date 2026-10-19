@@ -3,10 +3,10 @@
 {% block body %}
 <main class="mx-auto max-w-5xl px-4 py-12 sm:py-20">
   <section class="text-center">
-    <h1 class="text-4xl font-extrabold tracking-tight sm:text-5xl">How clean is that restaurant?</h1>
+    <h1 class="text-4xl font-extrabold tracking-tight sm:text-5xl">How good is the food, really?</h1>
     <p class="mx-auto mt-4 max-w-2xl text-lg text-stone-600">
-      Every restaurant gets a <strong>hygiene score</strong> from official health inspections and a
-      <strong>food score</strong> for how healthy the food is. Both run from 1 to 100, and higher is better.
+      CleanPlate reads every restaurant's actual menu and scores the food from 1 to 100:
+      fresh whole ingredients score high, while deep-fried, ultra-processed and seed-oil cooking score low.
     </p>
   </section>
 
@@ -20,26 +20,30 @@
           <div class="text-2xl font-bold">{{ c.city.name }}</div>
           <div class="text-stone-500">{{ c.city.state }}</div>
         </div>
-        {{ ring(c.avg_hygiene | int if c.avg_hygiene is not none else none, "h-14 w-14 text-xl") }}
+        {{ ring(c.avg_food | int if c.avg_food is not none else none, "h-14 w-14 text-xl") }}
       </div>
       <dl class="grid grid-cols-3 gap-3 text-sm">
-        <div><dt class="text-stone-500">Restaurants</dt><dd class="font-semibold">{{ "{:,}".format(c.restaurants or 0) }}</dd></div>
-        <div><dt class="text-stone-500">Avg hygiene</dt><dd class="font-semibold">{{ c.avg_hygiene | int if c.avg_hygiene is not none else "–" }}</dd></div>
-        <div><dt class="text-stone-500">Scoring 85+</dt><dd class="font-semibold">{{ c.pct_good | int if c.pct_good is not none else "–" }}%</dd></div>
+        <div><dt class="text-stone-500">Menus scored</dt><dd class="font-semibold">{{ "{:,}".format(c.restaurants or 0) }}</dd></div>
+        <div><dt class="text-stone-500">Avg food</dt><dd class="font-semibold">{{ c.avg_food | int if c.avg_food is not none else "–" }}</dd></div>
+        <div><dt class="text-stone-500">Scoring 70+</dt><dd class="font-semibold">{{ c.pct_good | int if c.pct_good is not none else "–" }}%</dd></div>
       </dl>
       <div class="text-sm font-semibold text-stone-900 group-hover:underline">Explore {{ c.city.name }} →</div>
     </a>
     {% endfor %}
   </section>
 
-  <section class="mt-14 grid gap-5 text-sm sm:grid-cols-2">
+  <section class="mt-14 grid gap-5 text-sm sm:grid-cols-3">
     <div class="rounded-2xl bg-white p-6 ring-1 ring-stone-200">
-      <div class="font-semibold">Hygiene score</div>
-      <p class="mt-1 text-stone-600">Built from each restaurant's latest health inspection: violations found, how serious they were, and whether it passed.</p>
+      <div class="font-semibold">Read from the menu</div>
+      <p class="mt-1 text-stone-600">We fetch each restaurant's own menu and AI reads every dish: fried or grilled, whole or processed, what it's cooked in.</p>
     </div>
     <div class="rounded-2xl bg-white p-6 ring-1 ring-stone-200">
-      <div class="font-semibold">Food score</div>
-      <p class="mt-1 text-stone-600">How healthy the food is, including the cooking oil. Estimated from the type of restaurant until visitors report what they saw.</p>
+      <div class="font-semibold">Evidence, not guesses</div>
+      <p class="mt-1 text-stone-600">Every score shows the menu lines behind it. Restaurants without a readable menu aren't scored.</p>
+    </div>
+    <div class="rounded-2xl bg-white p-6 ring-1 ring-stone-200">
+      <div class="font-semibold">Hygiene too</div>
+      <p class="mt-1 text-stone-600">Official health inspection results are still there, as a smaller hygiene score.</p>
     </div>
   </section>
   <p class="mt-4 text-center text-sm"><a href="/scores" class="underline">How scores work</a></p>

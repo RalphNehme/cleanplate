@@ -1,6 +1,6 @@
 {% extends "base.html" %}
-{% from "macros.html" import ring, official %}
-{% block title %}{{ r.name }} · hygiene and food score · CleanPlate{% endblock %}
+{% from "macros.html" import ring, official, hygiene_chip %}
+{% block title %}{{ r.name }} · food score · CleanPlate{% endblock %}
 {% block head %}
 {% if coords %}
 <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css">
@@ -9,25 +9,16 @@
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
 {% endblock %}
 {% block body %}
-{% set hb = band(r.hygiene_score) %}
 <main class="mx-auto max-w-5xl space-y-4 px-4 py-6">
   <a href="/{{ city.slug }}" class="text-sm text-stone-500 hover:text-stone-900">← {{ city.name }} map</a>
 
   <section class="flex flex-col gap-5 rounded-2xl border border-stone-200 bg-white p-5 sm:flex-row sm:items-center">
-    <div class="flex items-center gap-4">
-      {{ ring(r.hygiene_score, "h-24 w-24 text-4xl") }}
-      <div class="sm:hidden">
-        <div class="text-sm text-stone-500">Hygiene</div>
-        <div class="chip s-{{ hb.key }}">{{ hb.label }}</div>
-      </div>
-    </div>
     <div class="min-w-0 flex-1">
       <h1 class="text-2xl font-bold">{{ r.name }}</h1>
       <p class="text-stone-600">{{ r.cuisine or "Restaurant" }} · {{ r.address or "" }}{% if r.borough %}, {{ r.borough }}{% endif %} {{ r.zip or "" }}</p>
       <div class="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1">
-        <span class="chip s-{{ hb.key }} max-sm:hidden">Hygiene: {{ hb.label }}</span>
-        {{ official(r.latest_grade, city) }}
-        {% if r.latest_inspected_at %}<span class="text-xs text-stone-500">Last inspected {{ r.latest_inspected_at.strftime("%b %d, %Y") }}</span>{% endif %}
+        {% for d in (r.diet_tags or "").split(",") if d %}<span class="chip s-good">{{ d | replace("_", " ") | title }} options</span>{% endfor %}
+        {% if r.website %}<a href="{{ r.website }}" class="text-xs underline" rel="nofollow noopener" target="_blank">Website</a>{% endif %}
         {% if not r.active %}<span class="chip s-none">Likely closed</span>{% endif %}
       </div>
     </div>
@@ -41,6 +32,15 @@
 
   {% include "partials/food.html" %}
 
+  <details class="group rounded-2xl border border-stone-200 bg-white">
+    <summary class="flex cursor-pointer flex-wrap items-center gap-3 px-5 py-4">
+      <span class="font-semibold">Health inspections</span>
+      {{ hygiene_chip(r.hygiene_score) }}
+      {{ official(r.latest_grade, city) }}
+      {% if r.latest_inspected_at %}<span class="text-xs text-stone-500">Last inspected {{ r.latest_inspected_at.strftime("%b %d, %Y") }}</span>{% endif %}
+      <span class="ml-auto text-xs text-stone-500 group-open:hidden">Show</span>
+    </summary>
+  <div class="space-y-3 border-t border-stone-100 p-4">
   {% if history | length > 1 %}
   <section class="rounded-2xl border border-stone-200 bg-white p-5">
     <h2 class="mb-3 font-semibold">Hygiene score history</h2>
@@ -49,7 +49,6 @@
   {% endif %}
 
   <section class="space-y-3">
-    <h2 class="font-semibold">Inspections</h2>
     {% for i in r.inspections %}
     <details class="rounded-2xl border border-stone-200 bg-white" {% if loop.first %}open{% endif %}>
       <summary class="flex cursor-pointer items-center gap-3 px-5 py-3">
@@ -83,6 +82,8 @@
     <p class="text-sm text-stone-500">Not inspected yet.</p>
     {% endfor %}
   </section>
+  </div>
+  </details>
 </main>
 <script>
 {% if coords %}

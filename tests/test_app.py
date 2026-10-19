@@ -5,11 +5,32 @@ from fastapi.testclient import TestClient
 from sqlalchemy import text
 
 from app.db import SessionLocal, engine
+from app.food import MenuReport, refresh_food
 from app.main import app
 from pipeline.adapters.base import InspectionRecord, RestaurantRecord, ViolationRecord
+from pipeline.analyze import save as save_analysis
 from pipeline.load import load
+from pipeline.menus import MenuResult
+from pipeline.menus import save as save_menu
 
 TEST_ID = "test-0001"
+REPORT = MenuReport.model_validate(
+    {
+        "is_restaurant_menu": True,
+        "cuisine": "Testing",
+        "item_count": 20,
+        "fried_share": 0.0,
+        "whole_food_share": 0.5,
+        "ultra_processed_share": 0.0,
+        "vegetable_forward_share": 0.5,
+        "sweets_share": 0.0,
+        "quality_markers": ["house-made"],
+        "oil": {"stated": "olive", "evidence": "cooked in olive oil"},
+        "highlights": [{"quote": "Kale salad", "effect": "positive", "reason": "vegetables"}],
+        "summary": "Mostly vegetable dishes cooked in olive oil.",
+    }
+)
+MENU_SCORE = 50 + 15 + 5 + 2 + 10
 
 
 @pytest.fixture(scope="module")
@@ -52,6 +73,10 @@ def client():
         rid = session.scalar(
             text("SELECT id FROM restaurants WHERE source_id = :s"), {"s": TEST_ID}
         )
+        save_menu(session, rid, MenuResult("ok", "https://example.com/menu", "Kale salad $12"))
+        save_analysis(session, rid, "hash", REPORT)
+        refresh_food(session, restaurant_id=rid)
+        session.commit()
     yield TestClient(app), rid
     with SessionLocal() as session:
         session.execute(text("DELETE FROM restaurants WHERE source_id = :s"), {"s": TEST_ID})
@@ -96,7 +121,7 @@ def test_pages(client):
         not in c.get("/nyc/search", params={"q": "Zzyzx", "hygiene": "poor"}).text
     )
     page = c.get(f"/r/{rid}")
-    assert "Zzyzx" in page.text and "Estimated" in page.text
+    assert "Zzyzx" in page.text and "Kale salad" in page.text and "olive oil" in page.text
     assert c.get("/nyc/stats").status_code == 200
     assert c.get("/scores").status_code == 200
     assert c.get("/r/999999999").status_code == 404
@@ -106,16 +131,17 @@ def test_api(client):
     c, rid = client
     data = c.get(f"/api/restaurants/{rid}").json()
     assert (data["city"], data["official"], data["hygiene_score"]) == ("nyc", "A", 90)
-    assert data["food_source"] == "estimate"
+    assert (data["food_source"], data["food_score"]) == ("menu", MENU_SCORE)
+    assert data["menu"]["report"]["oil"]["stated"] == "olive"
     assert data["inspections"][1]["violations"][0]["critical"] is True
     near = c.get("/api/nyc/search", params={"lat": 40.75, "lon": -73.94}).json()
     assert near[0]["name"] == "Zzyzx Test Kitchen"
     points = c.get("/api/nyc/points", params={"cuisine": "Testing"}).json()
-    assert any(p[0] == rid and p[3] == 90 for p in points)
+    assert any(p[0] == rid and p[3] == MENU_SCORE and p[4] == 90 for p in points)
     assert not c.get("/api/chicago/points", params={"cuisine": "Testing"}).json()
 
 
-def test_food_reports_replace_estimate(client):
+def test_food_reports_blend_with_menu_score(client):
     c, rid = client
     with SessionLocal() as session:
         for i in range(2):
@@ -133,12 +159,12 @@ def test_food_reports_replace_estimate(client):
 
     first = c.post(f"/r/{rid}/report", data={"oil": "seed", "ingredients": "fresh"})
     assert "Thanks" in first.text
-    assert "Based on 3 visitor reports" in first.text
-    assert "Olive oil" in first.text
+    assert "Menu + 3 visitor reports" in first.text
+    assert "Visitors report: Olive oil" in first.text
 
     again = c.post(f"/r/{rid}/report", data={"oil": "seed"})
     assert "already reported" in again.text
 
     data = c.get(f"/api/restaurants/{rid}").json()
-    assert data["food_source"] == "reports"
-    assert data["food_score"] == round((95 + 95 + 48) / 3)
+    assert data["food_source"] == "menu+reports"
+    assert data["food_score"] == int((MENU_SCORE + round((95 + 95 + 48) / 3)) / 2 + 0.5)

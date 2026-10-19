@@ -1,8 +1,8 @@
 from geoalchemy2 import Geometry
-from sqlalchemy import func, select, text
+from sqlalchemy import exists, func, select, text
 from sqlalchemy.orm import Session, selectinload
 
-from app.models import City, Inspection, Restaurant
+from app.models import City, Inspection, MenuAnalysis, Restaurant
 
 BANDS = {
     "excellent": (90, 100),
@@ -25,12 +25,11 @@ def city_cards(session: Session) -> list[dict]:
     rows = session.execute(
         text("""
         SELECT c.slug, count(r.id) AS restaurants,
-               round(avg(r.hygiene_score)) AS avg_hygiene,
-               round(100.0 * count(*) FILTER (WHERE r.hygiene_score >= 85)
-                     / nullif(count(r.hygiene_score), 0)) AS pct_good,
-               max(r.latest_inspected_at) AS latest
+               round(avg(r.food_score)) AS avg_food,
+               round(100.0 * count(*) FILTER (WHERE r.food_score >= 70)
+                     / nullif(count(r.food_score), 0)) AS pct_good
         FROM cities c
-        LEFT JOIN restaurants r ON r.city_id = c.id AND r.active
+        LEFT JOIN restaurants r ON r.city_id = c.id AND r.active AND r.food_score IS NOT NULL
         GROUP BY c.slug
         """)
     )
@@ -39,7 +38,9 @@ def city_cards(session: Session) -> list[dict]:
 
 
 def _filters(stmt, city_id: int, area=None, cuisine=None, hygiene=None, food=None, oil=None):
-    stmt = stmt.where(Restaurant.city_id == city_id, Restaurant.active)
+    stmt = stmt.where(
+        Restaurant.city_id == city_id, Restaurant.active, Restaurant.food_score.is_not(None)
+    )
     if area:
         stmt = stmt.where(func.coalesce(Restaurant.borough, Restaurant.zip) == area)
     if cuisine:
@@ -51,7 +52,11 @@ def _filters(stmt, city_id: int, area=None, cuisine=None, hygiene=None, food=Non
         lo, hi = BANDS[food]
         stmt = stmt.where(Restaurant.food_score.between(lo, hi))
     if oil == "no-seed":
-        stmt = stmt.where(Restaurant.reported_oil.in_(NO_SEED_OILS))
+        menu_says = exists().where(
+            MenuAnalysis.restaurant_id == Restaurant.id,
+            MenuAnalysis.data["oil"]["stated"].astext.in_(NO_SEED_OILS),
+        )
+        stmt = stmt.where(Restaurant.reported_oil.in_(NO_SEED_OILS) | menu_says)
     return stmt
 
 
@@ -88,7 +93,7 @@ def search(
         stmt = stmt.add_columns(distance.label("meters"))
         stmt = stmt.where(func.ST_DWithin(Restaurant.geom, point, 2000)).order_by(distance)
     elif not q:
-        stmt = stmt.order_by(Restaurant.latest_inspected_at.desc().nulls_last())
+        stmt = stmt.order_by(Restaurant.food_score.desc(), Restaurant.name)
     return [dict(r._mapping) for r in session.execute(stmt.limit(limit))]
 
 
@@ -98,19 +103,21 @@ def points(session: Session, city_id: int, **filters) -> list[list]:
         Restaurant.id,
         func.ST_Y(geom),
         func.ST_X(geom),
-        Restaurant.hygiene_score,
         Restaurant.food_score,
+        Restaurant.hygiene_score,
         Restaurant.name,
     ).where(Restaurant.geom.is_not(None))
     stmt = _filters(stmt, city_id, **filters)
     return [
-        [i, round(la, 5), round(lo, 5), h, f, n] for i, la, lo, h, f, n in session.execute(stmt)
+        [i, round(la, 5), round(lo, 5), f, h, n] for i, la, lo, f, h, n in session.execute(stmt)
     ]
 
 
 def options(session: Session, city_id: int) -> dict:
     area = func.coalesce(Restaurant.borough, Restaurant.zip)
-    base = select().where(Restaurant.city_id == city_id, Restaurant.active)
+    base = select().where(
+        Restaurant.city_id == city_id, Restaurant.active, Restaurant.food_score.is_not(None)
+    )
     areas = session.scalars(
         base.add_columns(area).where(area.is_not(None)).group_by(area).order_by(area)
     ).all()
@@ -130,6 +137,8 @@ def restaurant(session: Session, rid: int) -> Restaurant | None:
         .where(Restaurant.id == rid)
         .options(
             selectinload(Restaurant.city),
+            selectinload(Restaurant.menu),
+            selectinload(Restaurant.analysis),
             selectinload(Restaurant.inspections).selectinload(Inspection.violations),
         )
     )
@@ -146,73 +155,58 @@ def coords(session: Session, rid: int) -> tuple[float, float] | None:
     return (row[0], row[1]) if row else None
 
 
-AREA_SCORES = text("""
+SCORED = "city_id = :cid AND active AND food_score IS NOT NULL"
+R_SCORED = "r.city_id = :cid AND r.active AND r.food_score IS NOT NULL"
+
+AREA_SCORES = text(f"""
 SELECT coalesce(borough, zip) AS area, count(*) AS restaurants,
-       round(avg(hygiene_score)) AS avg_hygiene,
-       count(*) FILTER (WHERE hygiene_score >= 90) AS excellent,
-       count(*) FILTER (WHERE hygiene_score BETWEEN 85 AND 89) AS good,
-       count(*) FILTER (WHERE hygiene_score BETWEEN 70 AND 84) AS fair,
-       count(*) FILTER (WHERE hygiene_score < 70) AS poor
+       round(avg(food_score)) AS avg_food,
+       count(*) FILTER (WHERE food_score >= 90) AS excellent,
+       count(*) FILTER (WHERE food_score BETWEEN 85 AND 89) AS good,
+       count(*) FILTER (WHERE food_score BETWEEN 70 AND 84) AS fair,
+       count(*) FILTER (WHERE food_score < 70) AS poor
 FROM restaurants
-WHERE city_id = :cid AND active AND hygiene_score IS NOT NULL
+WHERE {SCORED} AND coalesce(borough, zip) IS NOT NULL
 GROUP BY 1
-HAVING coalesce(borough, zip) IS NOT NULL
 ORDER BY restaurants DESC
 LIMIT 10
 """)
 
-CUISINE_SCORES = text("""
-SELECT cuisine, count(*) AS restaurants,
-       round(avg(hygiene_score)) AS avg_hygiene,
-       round(avg(food_score)) AS avg_food
+CUISINE_SCORES = text(f"""
+SELECT cuisine, count(*) AS restaurants, round(avg(food_score)) AS avg_food
 FROM restaurants
-WHERE city_id = :cid AND active AND cuisine IS NOT NULL AND hygiene_score IS NOT NULL
+WHERE {SCORED} AND cuisine IS NOT NULL
 GROUP BY cuisine
 HAVING count(*) >= :min_count
-ORDER BY avg(hygiene_score) DESC
+ORDER BY avg(food_score) DESC
 """)
 
-TOP_VIOLATIONS = text("""
-SELECT v.code, min(v.description) AS description, bool_or(v.critical) AS critical,
-       count(*) AS times
-FROM violations v
-JOIN inspections i ON i.id = v.inspection_id
-JOIN restaurants r ON r.id = i.restaurant_id
-WHERE r.city_id = :cid
-  AND i.inspected_at >= (SELECT max(latest_inspected_at) FROM restaurants WHERE city_id = :cid)
-                        - interval '12 months'
-GROUP BY v.code
-ORDER BY times DESC
-LIMIT 8
+OILS = text(f"""
+SELECT a.data->'oil'->>'stated' AS oil, count(*) AS restaurants
+FROM menu_analyses a JOIN restaurants r ON r.id = a.restaurant_id
+WHERE {R_SCORED}
+GROUP BY 1
+ORDER BY 2 DESC
 """)
 
-BIGGEST_DROPS = text("""
-WITH scored AS (
-    SELECT i.restaurant_id, i.inspected_at, i.hygiene_score,
-           lag(i.hygiene_score) OVER (PARTITION BY i.restaurant_id
-                                      ORDER BY i.inspected_at, i.id) AS prev
-    FROM inspections i JOIN restaurants r ON r.id = i.restaurant_id
-    WHERE r.city_id = :cid AND r.active AND i.hygiene_score IS NOT NULL
-)
-SELECT r.id, r.name, coalesce(r.borough, r.zip) AS area, s.inspected_at,
-       s.prev, s.hygiene_score, s.prev - s.hygiene_score AS drop
-FROM scored s
-JOIN restaurants r ON r.id = s.restaurant_id
-WHERE s.prev IS NOT NULL
-  AND s.inspected_at >= (SELECT max(latest_inspected_at) FROM restaurants WHERE city_id = :cid)
-                        - interval '90 days'
-ORDER BY drop DESC
+MARKERS = text(f"""
+SELECT lower(m) AS marker, count(DISTINCT r.id) AS restaurants
+FROM menu_analyses a
+JOIN restaurants r ON r.id = a.restaurant_id
+CROSS JOIN LATERAL jsonb_array_elements_text(a.data->'quality_markers') AS m
+WHERE {R_SCORED}
+GROUP BY 1
+ORDER BY 2 DESC
 LIMIT 10
 """)
 
-TOTALS = text("""
+TOTALS = text(f"""
 SELECT count(*) AS restaurants,
-       round(avg(hygiene_score)) AS avg_hygiene,
        round(avg(food_score)) AS avg_food,
-       count(*) FILTER (WHERE food_source = 'reports') AS reported,
-       max(latest_inspected_at) AS latest
+       round(avg(hygiene_score)) AS avg_hygiene,
+       count(*) FILTER (WHERE food_source = 'menu+reports') AS with_reports
 FROM restaurants
-WHERE city_id = :cid AND active
+WHERE {SCORED}
 """)
 
 
@@ -223,13 +217,12 @@ def stats(session: Session, city_id: int) -> dict:
         return [dict(r._mapping) for r in session.execute(q, {**params, **extra})]
 
     totals = dict(session.execute(TOTALS, params).first()._mapping)
-    cuisines = rows(CUISINE_SCORES, min_count=100 if totals["restaurants"] > 25000 else 40)
+    cuisines = rows(CUISINE_SCORES, min_count=10 if totals["restaurants"] > 500 else 3)
     return {
         "totals": totals,
         "areas": rows(AREA_SCORES),
-        "cleanest_cuisines": cuisines[:8],
-        "messiest_cuisines": cuisines[-8:][::-1],
-        "healthiest_cuisines": sorted(cuisines, key=lambda c: -(c["avg_food"] or 0))[:8],
-        "violations": rows(TOP_VIOLATIONS),
-        "drops": rows(BIGGEST_DROPS),
+        "healthiest_cuisines": cuisines[:8],
+        "least_healthy_cuisines": cuisines[-8:][::-1],
+        "oils": rows(OILS),
+        "markers": rows(MARKERS),
     }

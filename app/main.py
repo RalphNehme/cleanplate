@@ -37,7 +37,12 @@ def band(score: int | None) -> dict:
     return {"key": "poor", "label": "Poor"}
 
 
-templates.env.globals.update(band=band, oil_labels=food.OIL_LABELS, min_reports=food.MIN_REPORTS)
+templates.env.globals.update(
+    band=band,
+    oil_labels=food.OIL_LABELS,
+    min_reports=food.MIN_REPORTS,
+    likely_seed_oil=food.likely_seed_oil,
+)
 
 
 def get_city(slug: str, db: DB) -> City:
@@ -163,7 +168,7 @@ def api_cities(db: DB):
             "slug": c["city"].slug,
             "name": c["city"].name,
             "restaurants": c.get("restaurants"),
-            "avg_hygiene": c.get("avg_hygiene"),
+            "avg_food": c.get("avg_food"),
         }
         for c in queries.city_cards(db)
     ]
@@ -187,6 +192,17 @@ def api_restaurant(rid: int, db: DB):
         "food_source": r.food_source,
         "food_reports": r.food_reports_count,
         "reported_oil": r.reported_oil,
+        "menu": (
+            {
+                "url": r.menu.url,
+                "analyzed_at": r.analysis.analyzed_at,
+                "model": r.analysis.model,
+                "menu_score": r.analysis.score,
+                "report": r.analysis.data,
+            }
+            if r.analysis and r.menu
+            else None
+        ),
         "official": r.latest_grade,
         "inspections": [
             {

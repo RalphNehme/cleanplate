@@ -23,13 +23,6 @@
           <option value="">All cuisines</option>
           {% for c in options.cuisines %}<option>{{ c }}</option>{% endfor %}
         </select>
-        <select name="hygiene" class="{{ select }}" aria-label="Hygiene score">
-          <option value="">Any hygiene</option>
-          <option value="excellent">Hygiene 90+</option>
-          <option value="good">Hygiene 85+</option>
-          <option value="fair">Hygiene 70–84</option>
-          <option value="poor">Hygiene under 70</option>
-        </select>
         <select name="food" class="{{ select }}" aria-label="Food score">
           <option value="">Any food score</option>
           <option value="excellent">Food 90+</option>
@@ -37,9 +30,16 @@
           <option value="fair">Food 70–84</option>
           <option value="poor">Food under 70</option>
         </select>
+        <select name="hygiene" class="{{ select }}" aria-label="Hygiene score">
+          <option value="">Any hygiene</option>
+          <option value="excellent">Hygiene 90+</option>
+          <option value="good">Hygiene 85+</option>
+          <option value="fair">Hygiene 70–84</option>
+          <option value="poor">Hygiene under 70</option>
+        </select>
         <select name="oil" class="{{ select }} col-span-2" aria-label="Cooking oil">
           <option value="">Any cooking oil</option>
-          <option value="no-seed">No seed oils (visitor reported)</option>
+          <option value="no-seed">No seed oils (menu or visitors)</option>
         </select>
       </div>
       <input type="hidden" name="lat">
@@ -50,7 +50,7 @@
       </button>
     </form>
     <div class="flex items-center justify-between border-b border-stone-100 px-4 py-2 text-xs text-stone-500">
-      <span>Hygiene · Food</span><span>Dashed = estimated food score</span>
+      <span>Food score from each restaurant's menu</span><a href="/scores" class="underline">How it works</a>
     </div>
     <div id="results" class="min-h-0 flex-1 overflow-y-auto max-lg:max-h-[32rem]">
       {% include "partials/results.html" %}
@@ -60,7 +60,7 @@
     <div id="map" data-city="{{ city.slug }}" data-lat="{{ city.center_lat }}"
          data-lon="{{ city.center_lon }}" data-zoom="{{ city.zoom }}"></div>
     <div class="absolute bottom-3 left-3 z-10 flex flex-wrap gap-x-3 gap-y-1 rounded-xl bg-white/95 px-3 py-2 text-xs font-medium shadow">
-      <span class="font-semibold">Hygiene</span>
+      <span class="font-semibold">Food score</span>
       <span class="flex items-center gap-1 s-excellent"><span class="dot"></span>90+</span>
       <span class="flex items-center gap-1 s-good"><span class="dot"></span>85–89</span>
       <span class="flex items-center gap-1 s-fair"><span class="dot"></span>70–84</span>

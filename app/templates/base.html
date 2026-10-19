@@ -3,8 +3,8 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>{% block title %}CleanPlate · How clean is that restaurant?{% endblock %}</title>
-  <meta name="description" content="Restaurant hygiene and food scores from 1 to 100, built on official health inspections.">
+  <title>{% block title %}CleanPlate · How good is the food, really?{% endblock %}</title>
+  <meta name="description" content="How healthy is the food? Restaurant food scores from 1 to 100, read from each restaurant's menu.">
   <link rel="icon" href="/static/favicon.svg" type="image/svg+xml">
   <script src="https://cdn.tailwindcss.com/3.4.5"></script>
   <script src="https://unpkg.com/htmx.org@2.0.3"></script>
@@ -34,7 +34,7 @@
     {% else %}
     Inspection data from official city open data portals, updated nightly.
     {% endif %}
-    Hygiene and food scores are CleanPlate's own, not official ratings. CleanPlate is independent and not affiliated with any city government.
+    Food scores are AI readings of each restaurant's published menu and can be wrong; hygiene scores are CleanPlate's conversion of official inspections. Neither is an official rating. CleanPlate is independent and not affiliated with any city government.
   </footer>
 </body>
 </html>
