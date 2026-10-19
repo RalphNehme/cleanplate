@@ -1,6 +1,6 @@
 {% macro ring(score, size="h-11 w-11 text-base", estimated=False) -%}
 {%- set b = band(score) -%}
-<span class="ring s-{{ b.key }} {{ size }}{% if estimated %} est{% endif %}" title="{{ b.label }}{% if estimated %} (estimated){% endif %}">{{ score if score is not none else "–" }}</span>
+<span class="score-ring s-{{ b.key }} {{ size }}{% if estimated %} est{% endif %}" title="{{ b.label }}{% if estimated %} (estimated){% endif %}">{{ score if score is not none else "–" }}</span>
 {%- endmacro %}
 
 {% macro official(value, city) -%}

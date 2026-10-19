@@ -31,7 +31,12 @@
         {% if not r.active %}<span class="chip s-none">Likely closed</span>{% endif %}
       </div>
     </div>
-    {% if coords %}<div id="mini-map" class="h-36 w-full overflow-hidden rounded-xl sm:w-56"></div>{% endif %}
+    {% if coords %}
+    <div class="w-full sm:w-56">
+      <div id="mini-map" class="h-36 overflow-hidden rounded-xl"></div>
+      <p class="mt-1 text-right text-[10px] text-stone-400">© OpenStreetMap · OpenFreeMap</p>
+    </div>
+    {% endif %}
   </section>
 
   {% include "partials/food.html" %}
@@ -84,7 +89,7 @@
 const center = [{{ coords[1] }}, {{ coords[0] }}];
 const mini = new maplibregl.Map({
   container: "mini-map", style: "https://tiles.openfreemap.org/styles/positron",
-  center, zoom: 15, interactive: false, attributionControl: { compact: true },
+  center, zoom: 15, interactive: false, attributionControl: false,
 });
 new maplibregl.Marker({ color: "#1c1917" }).setLngLat(center).addTo(mini);
 {% endif %}
