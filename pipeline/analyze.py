@@ -1,4 +1,5 @@
 import logging
+import os
 import time
 from concurrent.futures import ThreadPoolExecutor
 
@@ -10,6 +11,7 @@ from sqlalchemy import text
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.orm import Session
 
+from app.config import settings
 from app.food import MenuReport, menu_score, refresh_food
 from app.models import MenuAnalysis
 
@@ -46,6 +48,15 @@ LIMIT :limit
 """)
 
 log = logging.getLogger("pipeline.analyze")
+
+
+def make_client() -> anthropic.Anthropic:
+    if settings.anthropic_api_key:
+        return anthropic.Anthropic(api_key=settings.anthropic_api_key)
+    # An empty ANTHROPIC_API_KEY would outrank `ant auth login` and workload identity federation.
+    if os.environ.get("ANTHROPIC_API_KEY") == "":
+        del os.environ["ANTHROPIC_API_KEY"]
+    return anthropic.Anthropic()
 
 
 def user_prompt(name: str, menu: str) -> str:
@@ -142,7 +153,7 @@ def analyze_city(session: Session, city_id: int, limit: int, batch: bool, worker
 
     tokens_in = tokens_out = 0
     if unique:
-        client = anthropic.Anthropic()
+        client = make_client()
         todo = list(unique.values())
         results = run_batch(client, todo) if batch else run_sync(client, todo, workers)
         for row, message in results:

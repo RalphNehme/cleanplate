@@ -103,3 +103,16 @@ def test_parse_message_handles_refusals_and_bad_json():
         stop_reason="end_turn", content=[SimpleNamespace(type="text", text="{oops")]
     )
     assert parse_message(broken) is None
+
+
+def test_make_client_uses_env_file_key_and_drops_empty_env_key(monkeypatch):
+    from pipeline import analyze
+
+    monkeypatch.setattr(analyze.settings, "anthropic_api_key", "sk-test")
+    assert analyze.make_client().api_key == "sk-test"
+
+    monkeypatch.setattr(analyze.settings, "anthropic_api_key", "")
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "")
+    monkeypatch.setenv("ANTHROPIC_AUTH_TOKEN", "token-from-login")
+    analyze.make_client()
+    assert "ANTHROPIC_API_KEY" not in analyze.os.environ
