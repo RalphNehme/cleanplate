@@ -38,4 +38,4 @@ jobs:
     needs: test
     steps:
       - uses: actions/checkout@v4
-      - run: docker build -t cleanplate .
+      - run: docker build --target web -t cleanplate .

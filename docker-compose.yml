@@ -15,7 +15,9 @@ services:
       retries: 10
 
   web:
-    build: .
+    build:
+      context: .
+      target: web
     environment:
       DATABASE_URL: postgresql+psycopg://cleanplate:cleanplate@db:5432/cleanplate
     ports:
@@ -25,10 +27,13 @@ services:
         condition: service_healthy
 
   pipeline:
-    build: .
+    build:
+      context: .
+      target: pipeline
     command: ["python", "-m", "pipeline.run", "--city", "nyc"]
     environment:
       DATABASE_URL: postgresql+psycopg://cleanplate:cleanplate@db:5432/cleanplate
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
     depends_on:
       db:
         condition: service_healthy
