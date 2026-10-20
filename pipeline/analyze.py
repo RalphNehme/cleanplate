@@ -19,6 +19,8 @@ MODEL = "claude-haiku-5-5"
 # Bump when the prompt or schema changes so existing analyses are redone.
 ANALYZER = f"{MODEL}/v2"
 MAX_TOKENS = 8000
+# The SDK waits as long as a 429 response asks; enough retries ride out a busy minute.
+MAX_RETRIES = 8
 # USD per million tokens for claude-haiku-5-5 (prompts under 100K tokens); batches cost half.
 PRICE_IN, PRICE_OUT = 0.10, 0.50
 
@@ -55,11 +57,11 @@ log = logging.getLogger("pipeline.analyze")
 
 def make_client() -> anthropic.Anthropic:
     if settings.anthropic_api_key:
-        return anthropic.Anthropic(api_key=settings.anthropic_api_key)
+        return anthropic.Anthropic(api_key=settings.anthropic_api_key, max_retries=MAX_RETRIES)
     # An empty ANTHROPIC_API_KEY would outrank `ant auth login` and workload identity federation.
     if os.environ.get("ANTHROPIC_API_KEY") == "":
         del os.environ["ANTHROPIC_API_KEY"]
-    return anthropic.Anthropic()
+    return anthropic.Anthropic(max_retries=MAX_RETRIES)
 
 
 def user_prompt(name: str, menu: str) -> str:
@@ -133,7 +135,7 @@ def cost(input_tokens: int, output_tokens: int, batch: bool) -> float:
     return total / 2 if batch else total
 
 
-def analyze_city(session: Session, city_id: int, limit: int, batch: bool, workers: int = 6):
+def analyze_city(session: Session, city_id: int, limit: int, batch: bool, workers: int = 4):
     rows = session.execute(PENDING, {"cid": city_id, "limit": limit, "model": ANALYZER}).all()
     if not rows:
         return {"analyzed": 0, "failed": 0, "cost": 0.0}
