@@ -1,17 +1,28 @@
 const el = document.getElementById("map");
 const city = el.dataset.city;
 const form = document.getElementById("filters");
+const dark = window.matchMedia("(prefers-color-scheme: dark)");
+const STYLES = {
+  light: "https://tiles.openfreemap.org/styles/positron",
+  dark: "https://tiles.openfreemap.org/styles/dark",
+};
 
-const COLOR = [
-  "case",
-  ["==", ["get", "s"], null], "#a8a29e",
-  ["step", ["get", "s"], "#dc2626", 70, "#d97706", 85, "#65a30d", 90, "#15803d"],
-];
-const CLUSTER_AVG = ["/", ["get", "sum"], ["max", ["get", "scored"], 1]];
+function palette() {
+  const css = getComputedStyle(document.documentElement);
+  const v = (name) => css.getPropertyValue(`--${name}`).trim();
+  return {
+    excellent: v("excellent"), good: v("good"), fair: v("fair"), poor: v("poor"), none: v("none"),
+    surface: `rgb(${v("surface").split(" ").join(",")})`,
+  };
+}
+
+function scale(input, p) {
+  return ["step", input, p.poor, 70, p.fair, 85, p.good, 90, p.excellent];
+}
 
 const map = new maplibregl.Map({
   container: el,
-  style: "https://tiles.openfreemap.org/styles/positron",
+  style: dark.matches ? STYLES.dark : STYLES.light,
   center: [Number(el.dataset.lon), Number(el.dataset.lat)],
   zoom: Number(el.dataset.zoom),
   attributionControl: { compact: true },
@@ -29,10 +40,11 @@ function filterParams() {
   return params;
 }
 
+let data = { type: "FeatureCollection", features: [] };
 async function geojson() {
   const res = await fetch(`/api/${city}/points?${filterParams()}`);
   const rows = await res.json();
-  return {
+  data = {
     type: "FeatureCollection",
     features: rows.map(([id, lat, lon, s, f, n]) => ({
       type: "Feature",
@@ -40,12 +52,14 @@ async function geojson() {
       properties: { id, s, f, n },
     })),
   };
+  return data;
 }
 
-map.on("load", async () => {
+function addLayers() {
+  const p = palette();
   map.addSource("places", {
     type: "geojson",
-    data: await geojson(),
+    data,
     cluster: true,
     clusterMaxZoom: 14,
     clusterRadius: 45,
@@ -54,18 +68,18 @@ map.on("load", async () => {
       scored: ["+", ["case", ["==", ["get", "s"], null], 0, 1]],
     },
   });
-
   map.addLayer({
     id: "clusters",
     type: "circle",
     source: "places",
     filter: ["has", "point_count"],
     paint: {
-      "circle-color": ["step", CLUSTER_AVG, "#dc2626", 70, "#d97706", 85, "#65a30d", 90, "#15803d"],
-      "circle-opacity": 0.85,
+      "circle-color": scale(["/", ["get", "sum"], ["max", ["get", "scored"], 1]], p),
+      "circle-opacity": 0.9,
       "circle-radius": ["step", ["get", "point_count"], 16, 50, 20, 250, 26, 1000, 32],
-      "circle-stroke-width": 3,
-      "circle-stroke-color": "rgba(255,255,255,0.8)",
+      "circle-stroke-width": 4,
+      "circle-stroke-color": p.surface,
+      "circle-stroke-opacity": 0.7,
     },
   });
   map.addLayer({
@@ -86,10 +100,10 @@ map.on("load", async () => {
     source: "places",
     filter: ["!", ["has", "point_count"]],
     paint: {
-      "circle-color": COLOR,
+      "circle-color": ["case", ["==", ["get", "s"], null], p.none, scale(["get", "s"], p)],
       "circle-radius": ["interpolate", ["linear"], ["zoom"], 11, 5, 15, 9, 17, 14],
       "circle-stroke-width": 2,
-      "circle-stroke-color": "#fff",
+      "circle-stroke-color": p.surface,
     },
   });
   map.addLayer({
@@ -101,31 +115,37 @@ map.on("load", async () => {
     layout: { "text-field": ["to-string", ["get", "s"]], "text-font": ["Noto Sans Bold"], "text-size": 11 },
     paint: { "text-color": "#fff" },
   });
+}
 
-  map.on("click", "clusters", async (e) => {
-    const feature = map.queryRenderedFeatures(e.point, { layers: ["clusters"] })[0];
-    const zoom = await map.getSource("places").getClusterExpansionZoom(feature.properties.cluster_id);
-    map.easeTo({ center: feature.geometry.coordinates, zoom });
-  });
-
-  const popup = new maplibregl.Popup({ closeButton: false, offset: 12, maxWidth: "260px" });
-  map.on("click", "points", (e) => {
-    const { id, s, f, n } = e.features[0].properties;
-    const node = document.createElement("a");
-    node.href = `/r/${id}`;
-    node.className = "popup";
-    const name = document.createElement("strong");
-    name.textContent = n;
-    const scores = document.createElement("span");
-    scores.textContent = `Food ${s ?? "–"} · Hygiene ${f ?? "–"}`;
-    node.append(name, scores);
-    popup.setLngLat(e.features[0].geometry.coordinates).setDOMContent(node).addTo(map);
-  });
-  for (const layer of ["clusters", "points"]) {
-    map.on("mouseenter", layer, () => (map.getCanvas().style.cursor = "pointer"));
-    map.on("mouseleave", layer, () => (map.getCanvas().style.cursor = ""));
-  }
+map.on("style.load", addLayers);
+map.once("load", async () => {
+  map.getSource("places").setData(await geojson());
 });
+dark.addEventListener("change", (e) => map.setStyle(e.matches ? STYLES.dark : STYLES.light));
+
+map.on("click", "clusters", async (e) => {
+  const feature = map.queryRenderedFeatures(e.point, { layers: ["clusters"] })[0];
+  const zoom = await map.getSource("places").getClusterExpansionZoom(feature.properties.cluster_id);
+  map.easeTo({ center: feature.geometry.coordinates, zoom });
+});
+
+const popup = new maplibregl.Popup({ closeButton: false, offset: 12, maxWidth: "260px" });
+map.on("click", "points", (e) => {
+  const { id, s, f, n } = e.features[0].properties;
+  const node = document.createElement("a");
+  node.href = `/r/${id}`;
+  node.className = "popup";
+  const name = document.createElement("strong");
+  name.textContent = n;
+  const scores = document.createElement("span");
+  scores.textContent = `Food ${s ?? "–"} · Hygiene ${f ?? "–"}`;
+  node.append(name, scores);
+  popup.setLngLat(e.features[0].geometry.coordinates).setDOMContent(node).addTo(map);
+});
+for (const layer of ["clusters", "points"]) {
+  map.on("mouseenter", layer, () => (map.getCanvas().style.cursor = "pointer"));
+  map.on("mouseleave", layer, () => (map.getCanvas().style.cursor = ""));
+}
 
 async function reload() {
   const source = map.getSource("places");
