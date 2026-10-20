@@ -2,59 +2,102 @@ from types import SimpleNamespace
 
 from bs4 import BeautifulSoup
 
-from app.food import MenuReport, menu_score, report_score
+from app.food import MenuReport, breakdown, meal_score, menu_score, report_score
 from pipeline.analyze import json_schema, parse_message
 from pipeline.menus import Fetcher, choose, menu_links, menu_signal
+
+FACTORS = (
+    "vegetables",
+    "whole_grains_legumes",
+    "healthy_protein",
+    "unsaturated_fats",
+    "deep_fried",
+    "processed_meat",
+    "added_sugar",
+    "saturated_fat",
+)
+
+
+def meal(name="Dish", sodium_mg=None, described=True, **levels):
+    return {
+        "name": name,
+        "described": described,
+        **{f: levels.get(f, 0) for f in FACTORS},
+        "sodium_mg": sodium_mg,
+        "note": "",
+    }
+
+
+SALAD = meal(
+    "Kale salad", vegetables=1, whole_grains_legumes=0.5, healthy_protein=1, unsaturated_fats=0.5
+)
+BURGER = meal("Cheeseburger & fries", deep_fried=0.5, saturated_fat=1)
+PLAIN = meal("Plain plate")
 
 
 def report(**kw) -> MenuReport:
     base = {
         "is_restaurant_menu": True,
         "cuisine": "Mediterranean",
-        "item_count": 30,
-        "fried_share": 0.0,
-        "whole_food_share": 0.0,
-        "ultra_processed_share": 0.0,
-        "vegetable_forward_share": 0.0,
-        "sweets_share": 0.0,
-        "quality_markers": [],
-        "oil": {"stated": "not_stated", "evidence": ""},
-        "highlights": [],
         "summary": "",
+        "meals": [PLAIN] * 5,
+        "dessert_count": 0,
+        "sugary_drink_count": 0,
+        "oil": {"stated": "not_stated", "evidence": ""},
+        "quality_markers": [],
     }
     return MenuReport.model_validate({**base, **kw})
 
 
-def test_menu_score_rewards_whole_foods_and_named_good_fats():
-    healthy = report(
-        whole_food_share=0.8,
-        vegetable_forward_share=0.6,
-        quality_markers=["organic", "wild-caught", "house-made"],
-        oil={"stated": "olive", "evidence": "extra virgin olive oil"},
-    )
-    assert menu_score(healthy) == 98
+def meal_of(**kw):
+    return report(meals=[meal(**kw)] * 5).meals[0]
 
 
-def test_menu_score_penalizes_fried_processed_and_seed_oil():
-    junk = report(fried_share=0.7, ultra_processed_share=0.6, sweets_share=0.3)
-    assert menu_score(junk) == 12
-    seed = report(oil={"stated": "seed", "evidence": "fried in canola oil"})
-    assert menu_score(seed) == 35
+def test_meal_scores_follow_the_formula_on_the_calibrated_scale():
+    assert meal_score(report(meals=[SALAD] * 5).meals[0]) == 100
+    assert meal_score(meal_of()) == 70
+    assert meal_score(report(meals=[BURGER] * 5).meals[0]) == 30
 
 
-def test_menu_score_skips_non_menus():
+def test_levels_snap_to_zero_half_or_one():
+    assert meal_score(meal_of(vegetables=0.3)) == meal_score(meal_of(vegetables=0.5))
+
+
+def test_sodium_counts_only_when_published():
+    assert meal_score(meal_of(sodium_mg=500)) == 70
+    assert meal_score(meal_of(sodium_mg=700)) == 55
+    assert meal_score(meal_of(sodium_mg=1200)) == 40
+
+
+def test_restaurant_score_averages_meals_and_rounds_to_five():
+    assert menu_score(report()) == 70
+    assert menu_score(report(meals=[SALAD, BURGER, PLAIN, PLAIN, PLAIN])) == 80
+
+
+def test_oil_and_claims_do_not_change_the_score():
+    seed = report(oil={"stated": "seed", "evidence": "fried in canola"})
+    tallow = report(oil={"stated": "animal", "evidence": "beef tallow"}, quality_markers=["local"])
+    assert menu_score(seed) == menu_score(tallow) == menu_score(report())
+
+
+def test_menu_score_skips_non_menus_and_tiny_menus():
     assert menu_score(report(is_restaurant_menu=False)) is None
-    assert menu_score(report(item_count=2)) is None
+    assert menu_score(report(meals=[PLAIN] * 4)) is None
 
 
-def test_shares_are_clamped():
-    assert menu_score(report(whole_food_share=4.0)) == 80
+def test_breakdown_ranks_meals_and_reports_confidence():
+    b = breakdown(report(meals=[BURGER, SALAD, PLAIN, PLAIN, PLAIN]).model_dump())
+    names = [m["meal"].name for m in b["meals"]]
+    assert names[0] == "Kale salad" and names[-1] == "Cheeseburger & fries"
+    assert b["share_good"] == 80
+    assert b["confidence"] == "medium"
+    assert breakdown({"summary": "old format"}) is None
 
 
-def test_report_score_penalizes_seed_oils():
-    assert report_score("olive", "fresh", "many") == 95
-    assert report_score("seed", None, None) == 20
-    assert report_score(None, None, None) is None
+def test_report_score_ignores_cooking_oil():
+    assert report_score("fresh", "many") == 95
+    assert report_score("processed", None) == 30
+    assert report_score(None, None) is None
 
 
 def test_menu_links_skip_social_delivery_and_reservations():

@@ -5,11 +5,11 @@ from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 MIN_REPORTS = 3
+MIN_MEALS = 5
 
-OIL_POINTS = {"seed": 20, "olive": 95, "avocado": 95, "animal": 85}
 INGREDIENT_POINTS = {"fresh": 95, "mixed": 65, "processed": 30}
 HEALTHY_POINTS = {"many": 95, "some": 65, "few": 30}
-WEIGHTS = {"oil": 0.5, "ingredients": 0.3, "healthy": 0.2}
+OIL_CHOICES = ("seed", "olive", "avocado", "animal")
 
 OIL_LABELS = {
     "seed": "Seed oils (canola, soybean, vegetable…)",
@@ -19,92 +19,170 @@ OIL_LABELS = {
     "mixed": "A mix of oils",
 }
 
+# Points for a factor at full strength (level 1); level 0.5 earns half.
+MEAL_WEIGHTS = {
+    "vegetables": 20,
+    "whole_grains_legumes": 15,
+    "healthy_protein": 10,
+    "unsaturated_fats": 5,
+    "deep_fried": -20,
+    "processed_meat": -10,
+    "added_sugar": -10,
+    "saturated_fat": -10,
+}
+SODIUM_WEIGHT = -15
+# Averaging many meals bunches restaurants between ~30 and ~70, so the average is stretched
+# around a center (order unchanged). Chosen from an 80-menu pilot to spread scores ~25-100.
+CALIBRATION_CENTER = 40
+CALIBRATION_STRETCH = 2.0
+FACTOR_LABELS = {
+    "vegetables": "Vegetables & fruit",
+    "whole_grains_legumes": "Whole grains & legumes",
+    "healthy_protein": "Healthy protein",
+    "unsaturated_fats": "Unsaturated fats",
+    "deep_fried": "Deep-fried",
+    "processed_meat": "Processed meat",
+    "added_sugar": "Added sugar",
+    "saturated_fat": "Saturated fat",
+}
+
+LEVEL = "0 = absent or negligible, 0.5 = moderate part of the meal, 1 = substantial or main part"
+
 
 class OilInfo(BaseModel):
     stated: Literal["seed", "olive", "avocado", "animal", "mixed", "not_stated"]
     evidence: str = Field(description="Verbatim menu quote naming the oil or fat, or empty.")
 
 
-class Highlight(BaseModel):
-    quote: str = Field(description="Verbatim text copied from the menu, under 120 characters.")
-    effect: Literal["positive", "negative"]
-    reason: str = Field(description="Under 12 words: why this helps or hurts the food score.")
+class Meal(BaseModel):
+    name: str = Field(description="The dish name copied verbatim from the menu.")
+    described: bool = Field(
+        description="True if the menu lists its ingredients or preparation, not just a name."
+    )
+    vegetables: float = Field(description=f"Vegetables and fruit. {LEVEL}.")
+    whole_grains_legumes: float = Field(
+        description=f"Whole grains, beans, lentils, chickpeas. {LEVEL}."
+    )
+    healthy_protein: float = Field(
+        description=f"Beans, lentils, tofu, fish, or lean unprocessed poultry or meat. {LEVEL}."
+    )
+    unsaturated_fats: float = Field(
+        description=f"Nuts, seeds, avocado, olive oil or other stated unsaturated oils. {LEVEL}."
+    )
+    deep_fried: float = Field(description=f"Deep-fried main components or fried sides. {LEVEL}.")
+    processed_meat: float = Field(
+        description=f"Bacon, sausage, hot dogs, salami, deli meats. {LEVEL}."
+    )
+    added_sugar: float = Field(description=f"Sugary sauces, glazes, syrups. {LEVEL}.")
+    saturated_fat: float = Field(
+        description=f"Butter, ghee, tallow, cream, cheese, fatty red meat. {LEVEL}."
+    )
+    sodium_mg: int | None = Field(
+        description="Sodium per serving in mg, only if the menu publishes it; otherwise null."
+    )
+    note: str = Field(description="Under 12 words: what makes this meal healthy or not.")
 
 
 class MenuReport(BaseModel):
     is_restaurant_menu: bool
     cuisine: str = Field(description="Main cuisine in 1-3 words, e.g. 'Thai', 'Burgers'.")
-    item_count: int
-    fried_share: float = Field(description="0-1: share of savory items deep-fried or battered.")
-    whole_food_share: float = Field(
-        description="0-1: share of items built mainly from minimally processed ingredients."
+    summary: str = Field(description="One or two plain sentences about how healthy the food is.")
+    meals: list[Meal] = Field(
+        description="Up to 25 representative main meals (entrees, mains, bowls, sandwiches, "
+        "plates), including their default sides and sauces. Not desserts or drinks."
     )
-    ultra_processed_share: float = Field(
-        description="0-1: share of items centered on processed meats, pre-made, frozen or "
-        "refined-flour-heavy foods, or sugary drinks."
-    )
-    vegetable_forward_share: float = Field(
-        description="0-1: share of items where vegetables or legumes are a main component."
-    )
-    sweets_share: float = Field(
-        description="0-1: share of items that are desserts, sweets or sugary drinks."
-    )
-    quality_markers: list[str] = Field(
-        description="Explicit menu claims such as organic, grass-fed, wild-caught, "
-        "pasture-raised, house-made, scratch-made, local, seed-oil free. Empty if none."
-    )
+    dessert_count: int = Field(description="Number of desserts and sweets on the menu.")
+    sugary_drink_count: int = Field(description="Number of sweetened drinks, shakes, sodas.")
     oil: OilInfo
-    highlights: list[Highlight] = Field(description="Up to 6 quotes that drive the score.")
-    summary: str = Field(description="One or two plain sentences about the food's quality.")
+    quality_markers: list[str] = Field(
+        description="Explicit menu claims such as organic, grass-fed, wild-caught, house-made, "
+        "seed-oil free. Empty if none."
+    )
 
 
-def _share(value: float) -> float:
-    return max(0.0, min(1.0, value))
+def _level(value: float) -> float:
+    return min((0.0, 0.5, 1.0), key=lambda option: abs(option - value))
+
+
+def sodium_level(mg: int | None) -> float | None:
+    if mg is None:
+        return None
+    if mg <= 600:
+        return 0.0
+    return 0.5 if mg <= 1000 else 1.0
+
+
+def raw_meal_score(meal: Meal) -> float:
+    s = 50.0 + sum(w * _level(getattr(meal, k)) for k, w in MEAL_WEIGHTS.items())
+    sodium = sodium_level(meal.sodium_mg)
+    if sodium is not None:
+        s += SODIUM_WEIGHT * sodium
+    return max(0.0, min(100.0, s))
+
+
+def calibrate(raw: float) -> float:
+    return 50 + (raw - CALIBRATION_CENTER) * CALIBRATION_STRETCH
+
+
+def meal_score(meal: Meal) -> int:
+    return max(1, min(100, round(calibrate(raw_meal_score(meal)))))
 
 
 def menu_score(r: MenuReport) -> int | None:
-    if not r.is_restaurant_menu or r.item_count < 3:
+    if not r.is_restaurant_menu or len(r.meals) < MIN_MEALS:
         return None
-    s = 50.0
-    s += 30 * _share(r.whole_food_share)
-    s += 10 * _share(r.vegetable_forward_share)
-    s -= 25 * _share(r.fried_share)
-    s -= 20 * _share(r.ultra_processed_share)
-    s -= 10 * _share(r.sweets_share)
-    s += min(10.0, 2.5 * len(r.quality_markers))
-    if r.oil.stated in ("olive", "avocado", "animal"):
-        s += 10
-    elif r.oil.stated == "seed":
-        s -= 15
-    elif r.oil.stated == "not_stated" and r.fried_share > 0.2:
-        s -= 5
-    return max(1, min(100, round(s)))
+    mean = sum(raw_meal_score(m) for m in r.meals) / len(r.meals)
+    return max(5, min(100, 5 * round(calibrate(mean) / 5)))
 
 
-def likely_seed_oil(r: dict) -> bool:
-    return r["oil"]["stated"] == "not_stated" and r["fried_share"] > 0.2
+def confidence(r: MenuReport) -> str:
+    described = sum(m.described for m in r.meals) / max(len(r.meals), 1)
+    if described >= 0.7 and len(r.meals) >= 8:
+        return "high"
+    return "medium" if described >= 0.4 else "low"
 
 
-def report_score(oil: str | None, ingredients: str | None, healthy: str | None) -> int | None:
+def breakdown(data: dict) -> dict | None:
+    """Per-meal scores and summary figures for display; None for older analyses."""
+    if "meals" not in data:
+        return None
+    report = MenuReport.model_validate(data)
+    meals = sorted(
+        ({"meal": m, "score": meal_score(m)} for m in report.meals),
+        key=lambda x: x["score"],
+        reverse=True,
+    )
+    good = sum(1 for m in meals if m["score"] >= 70)
+    return {
+        "meals": meals,
+        "best": meals[:3],
+        "worst": [m for m in meals[-3:][::-1] if m not in meals[:3]],
+        "share_good": round(100 * good / len(meals)) if meals else 0,
+        "confidence": confidence(report),
+        "sodium_known": any(m.sodium_mg is not None for m in report.meals),
+        "report": report,
+    }
+
+
+def report_score(ingredients: str | None, healthy: str | None) -> int | None:
+    """Visitor report score. Cooking oil is recorded for information but not scored."""
     parts = [
-        (OIL_POINTS.get(oil or ""), WEIGHTS["oil"]),
-        (INGREDIENT_POINTS.get(ingredients or ""), WEIGHTS["ingredients"]),
-        (HEALTHY_POINTS.get(healthy or ""), WEIGHTS["healthy"]),
+        p
+        for p in (INGREDIENT_POINTS.get(ingredients or ""), HEALTHY_POINTS.get(healthy or ""))
+        if p is not None
     ]
-    parts = [(p, w) for p, w in parts if p is not None]
-    if not parts:
-        return None
-    return round(sum(p * w for p, w in parts) / sum(w for _, w in parts))
+    return round(sum(parts) / len(parts)) if parts else None
 
 
 REFRESH_FOOD = """
 WITH agg AS (
-    SELECT restaurant_id, count(*) AS n, round(avg(score))::int AS score,
-           mode() WITHIN GROUP (ORDER BY oil) FILTER (WHERE oil IS NOT NULL) AS oil
+    SELECT restaurant_id, count(score) AS n, round(avg(score))::int AS score,
+           mode() WITHIN GROUP (ORDER BY oil) FILTER (WHERE oil IS NOT NULL) AS oil,
+           count(*) AS reports
     FROM food_reports GROUP BY restaurant_id
 )
 UPDATE restaurants r
-SET food_reports_count = coalesce(agg.n, 0),
+SET food_reports_count = coalesce(agg.reports, 0),
     reported_oil = agg.oil,
     cuisine = coalesce(r.cuisine, r.osm_cuisine, ma.cuisine),
     food_score = CASE WHEN ma.score IS NULL THEN NULL

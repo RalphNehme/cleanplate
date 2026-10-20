@@ -127,7 +127,7 @@ class FoodReport(Base):
     oil: Mapped[str | None] = mapped_column(String(20))
     ingredients: Mapped[str | None] = mapped_column(String(20))
     healthy_options: Mapped[str | None] = mapped_column(String(20))
-    score: Mapped[int] = mapped_column(Integer)
+    score: Mapped[int | None] = mapped_column(Integer)
     reporter_hash: Mapped[str] = mapped_column(String(64))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 

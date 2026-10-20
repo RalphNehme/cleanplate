@@ -14,23 +14,33 @@ from pipeline.menus import MenuResult
 from pipeline.menus import save as save_menu
 
 TEST_ID = "test-0001"
+MEAL = {
+    "name": "Kale salad",
+    "described": True,
+    "vegetables": 1,
+    "whole_grains_legumes": 0.5,
+    "healthy_protein": 0.5,
+    "unsaturated_fats": 0,
+    "deep_fried": 0,
+    "processed_meat": 0,
+    "added_sugar": 0,
+    "saturated_fat": 0,
+    "sodium_mg": None,
+    "note": "Greens and grains",
+}
 REPORT = MenuReport.model_validate(
     {
         "is_restaurant_menu": True,
         "cuisine": "Testing",
-        "item_count": 20,
-        "fried_share": 0.0,
-        "whole_food_share": 0.5,
-        "ultra_processed_share": 0.0,
-        "vegetable_forward_share": 0.5,
-        "sweets_share": 0.0,
-        "quality_markers": ["house-made"],
-        "oil": {"stated": "olive", "evidence": "cooked in olive oil"},
-        "highlights": [{"quote": "Kale salad", "effect": "positive", "reason": "vegetables"}],
         "summary": "Mostly vegetable dishes cooked in olive oil.",
+        "meals": [MEAL] * 5,
+        "dessert_count": 1,
+        "sugary_drink_count": 0,
+        "oil": {"stated": "olive", "evidence": "cooked in olive oil"},
+        "quality_markers": ["house-made"],
     }
 )
-MENU_SCORE = 50 + 15 + 5 + 2 + 10
+MENU_SCORE = 100
 
 
 @pytest.fixture(scope="module")
@@ -163,7 +173,7 @@ def test_food_reports_blend_with_menu_score(client):
     empty = c.post(f"/r/{rid}/report", data={})
     assert "Pick at least one answer" in empty.text
 
-    first = c.post(f"/r/{rid}/report", data={"oil": "seed", "ingredients": "fresh"})
+    first = c.post(f"/r/{rid}/report", data={"oil": "olive", "ingredients": "mixed"})
     assert "Thanks" in first.text
     assert "Menu + 3 visitor reports" in first.text
     assert "Visitors report: Olive oil" in first.text
@@ -173,4 +183,4 @@ def test_food_reports_blend_with_menu_score(client):
 
     data = c.get(f"/api/restaurants/{rid}").json()
     assert data["food_source"] == "menu+reports"
-    assert data["food_score"] == int((MENU_SCORE + round((95 + 95 + 48) / 3)) / 2 + 0.5)
+    assert data["food_score"] == int((MENU_SCORE + round((95 + 95 + 65) / 3)) / 2 + 0.5)

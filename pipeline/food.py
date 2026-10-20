@@ -5,7 +5,7 @@ import time
 from app.db import SessionLocal
 from pipeline.load import city_id
 
-STEPS = ("osm", "menus", "analyze")
+STEPS = ("osm", "menus", "analyze", "rescore")
 
 
 def main() -> None:
@@ -30,10 +30,14 @@ def main() -> None:
             from pipeline.menus import fetch_city
 
             log.info("Menu fetch results: %s", fetch_city(session, cid, args.limit))
-        else:
+        elif args.step == "analyze":
             from pipeline.analyze import analyze_city
 
             log.info("Analysis: %s", analyze_city(session, cid, args.limit, args.batch))
+        else:
+            from pipeline.analyze import rescore_city
+
+            log.info("Rescored %d analyses from saved data", rescore_city(session, cid))
     log.info("Done in %.0fs", time.monotonic() - start)
 
 

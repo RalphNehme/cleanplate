@@ -17,29 +17,39 @@ from app.models import MenuAnalysis
 
 MODEL = "claude-haiku-5-5"
 # Bump when the prompt or schema changes so existing analyses are redone.
-ANALYZER = f"{MODEL}/v2"
+ANALYZER = f"{MODEL}/v4"
 MAX_TOKENS = 8000
 # The SDK waits as long as a 429 response asks; enough retries ride out a busy minute.
 MAX_RETRIES = 8
 # USD per million tokens for claude-haiku-5-5 (prompts under 100K tokens); batches cost half.
 PRICE_IN, PRICE_OUT = 0.10, 0.50
 
-SYSTEM = """You assess how healthy and high-quality a restaurant's food is, using only the menu \
+SYSTEM = """You assess the nutritional quality of a restaurant's main meals, using only the menu \
 text provided. The text was scraped from the restaurant's website and may include navigation \
 or other noise; ignore anything that isn't food or drink.
 
 Rules:
-- Judge only from what the menu says. Do not assume ingredients or cooking methods the menu \
-doesn't mention, except that items described as fried, crispy, tempura, battered or breaded \
-count as deep-fried.
+- List up to 25 representative main meals (entrees, mains, bowls, plates, sandwiches, pizzas, \
+large salads). If the menu has more, pick a spread that represents the whole menu, not only the \
+healthiest or least healthy. Skip appetizers, sides, desserts and drinks unless the menu has no \
+mains.
+- Rate each meal as served, including its default sides and sauces, with 0, 0.5 or 1 per factor: \
+0 = absent or negligible, 0.5 = a moderate part of the meal, 1 = a substantial or main part.
+- Judge only from what the menu says and what the dish plainly is (a cheeseburger has cheese and \
+fatty red meat; fries are deep-fried; tempura, battered, breaded and "crispy" items are fried). \
+Don't invent ingredients the menu doesn't suggest.
+- Garnishes don't count as vegetables; standard sandwich toppings (lettuce, tomato, onion) are \
+at most 0.5. White rice, white bread, tortillas and regular pasta are not whole grains. Only \
+count whole grains when the dish comes with them by default (e.g. "brown rice", "whole wheat \
+wrap", "farro"); an optional choice of bread or rice doesn't count.
+- Deli meats (turkey, ham, salami, pepperoni, bacon) are processed meat, not healthy protein.
+- sodium_mg: only when the menu prints sodium for that item; otherwise null.
 - Cooking oil: set oil.stated only when the menu names the oil or fat used (e.g. "fried in \
 beef tallow", "extra virgin olive oil", "seed-oil free", "canola"). Otherwise use "not_stated". \
-"Seed-oil free" without naming the fat counts as "mixed".
-- Shares are fractions from 0 to 1 of the menu's items. Sweetened drinks, smoothies, shakes, \
-frappes and juices with added sugar count toward sweets_share.
-- Quality markers and highlight quotes must be copied verbatim from the menu text.
+"Seed-oil free" without naming the fat counts as "mixed". The oil is recorded for information.
+- Copy meal names and quality markers verbatim from the menu.
 - If the text is not a food menu (e.g. a homepage with no dishes), set is_restaurant_menu to \
-false and keep other fields minimal."""
+false and return an empty meals list."""
 
 PENDING = text("""
 SELECT m.restaurant_id, m.text, m.text_hash, r.name
@@ -231,3 +241,22 @@ def run_batch(client: anthropic.Anthropic, rows, poll_seconds: int = 30):
             log.warning("Restaurant %s: batch result %s", row.restaurant_id, result.result.type)
             results.append((row, None))
     return results
+
+
+def rescore_city(session: Session, city_id: int) -> int:
+    """Recompute scores from saved analyses, e.g. after a formula change. No API calls."""
+    rows = session.execute(
+        text(
+            "SELECT a.id, a.data FROM menu_analyses a JOIN restaurants r ON r.id = a.restaurant_id "
+            "WHERE r.city_id = :cid AND a.model = :model"
+        ),
+        {"cid": city_id, "model": ANALYZER},
+    ).all()
+    for aid, data in rows:
+        score = menu_score(MenuReport.model_validate(data))
+        session.execute(
+            text("UPDATE menu_analyses SET score = :s WHERE id = :id"), {"s": score, "id": aid}
+        )
+    refresh_food(session, city_id=city_id)
+    session.commit()
+    return len(rows)

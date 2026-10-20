@@ -41,7 +41,8 @@ templates.env.globals.update(
     band=band,
     oil_labels=food.OIL_LABELS,
     min_reports=food.MIN_REPORTS,
-    likely_seed_oil=food.likely_seed_oil,
+    breakdown=food.breakdown,
+    factor_labels=food.FACTOR_LABELS,
 )
 
 
@@ -91,7 +92,13 @@ def scores_page(request: Request, db: DB):
     return templates.TemplateResponse(
         request,
         "scores.html",
-        {"cities": queries.cities(db), "oil_points": food.OIL_POINTS},
+        {
+            "weights": food.MEAL_WEIGHTS,
+            "factor_labels": food.FACTOR_LABELS,
+            "sodium_weight": food.SODIUM_WEIGHT,
+            "center": food.CALIBRATION_CENTER,
+            "stretch": food.CALIBRATION_STRETCH,
+        },
     )
 
 
@@ -124,12 +131,12 @@ def submit_report(
     r = queries.restaurant(db, rid)
     if not r:
         raise HTTPException(404)
-    oil = oil if oil in food.OIL_POINTS else None
+    oil = oil if oil in food.OIL_CHOICES else None
     ingredients = ingredients if ingredients in food.INGREDIENT_POINTS else None
     healthy = healthy if healthy in food.HEALTHY_POINTS else None
-    score = food.report_score(oil, ingredients, healthy)
+    score = food.report_score(ingredients, healthy)
     message = "Thanks! Your report was added."
-    if score is None:
+    if score is None and oil is None:
         message = "Pick at least one answer before submitting."
     else:
         ip = request.client.host if request.client else ""
