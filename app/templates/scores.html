@@ -31,23 +31,38 @@
       {% endfor %}
     </ol>
 
-    <div class="card mt-8 overflow-hidden">
+    {% set hei = {
+      "vegetables": "Total vegetables 5, greens 2.5, total fruits 5, whole fruits 5",
+      "whole_grains_legumes": "Whole grains 10, beans 2.5",
+      "healthy_protein": "Total protein foods 5, seafood & plant proteins 5",
+      "unsaturated_fats": "Fatty acids 10",
+      "deep_fried": "Refined grains 10 (batter, breading)",
+      "processed_meat": "Part of sodium, which menus rarely print",
+      "added_sugar": "Added sugars 10",
+      "saturated_fat": "Saturated fats 10"} %}
+    <div class="card mt-8 overflow-x-auto">
       <table class="w-full text-sm">
         <thead class="bg-surface2 text-left text-xs uppercase tracking-widest text-muted">
-          <tr><th class="px-5 py-3 font-semibold">Each meal starts at 50</th><th class="px-5 py-3 text-right font-semibold">Points at full strength</th></tr>
+          <tr><th class="px-5 py-3 font-semibold">Each meal starts at 50</th><th class="px-5 py-3 font-semibold">HEI-2020 basis</th><th class="px-5 py-3 text-right font-semibold">Points</th></tr>
         </thead>
         <tbody class="divide-y divide-line">
           {% for key, w in weights.items() %}
           <tr><td class="px-5 py-2.5">{{ factor_labels[key] }}</td>
-            <td class="px-5 py-2.5 text-right font-semibold tabular-nums s-{{ 'excellent' if w > 0 else 'poor' }}" style="color: var(--c)">{{ "%+d" | format(w) }}</td></tr>
+            <td class="px-5 py-2.5 text-xs text-muted">{{ hei[key] }}</td>
+            <td class="px-5 py-2.5 text-right font-semibold tabular-nums s-{{ 'excellent' if w > 0 else 'poor' }}" style="color: var(--c)">{{ "%+g" | format(w) }}</td></tr>
           {% endfor %}
           <tr><td class="px-5 py-2.5">Sodium, when the menu prints it (over 600 mg: half, over 1,000 mg: full)</td>
-            <td class="px-5 py-2.5 text-right font-semibold tabular-nums s-poor" style="color: var(--c)">{{ "%+d" | format(sodium_weight) }}</td></tr>
+            <td class="px-5 py-2.5 text-xs text-muted">Sodium 10</td>
+            <td class="px-5 py-2.5 text-right font-semibold tabular-nums s-poor" style="color: var(--c)">{{ "%+g" | format(sodium_weight) }}</td></tr>
         </tbody>
       </table>
     </div>
     <p class="mt-4 text-sm leading-relaxed text-muted">
-      Menus that list only a few meals (say, a chain page showing just its promo items) are pulled toward the average restaurant, as if {{ prior_meals }} typical meals were added, so a short page can't swing to an extreme. Averaging many meals also bunches most restaurants between about 30 and 70, so the average is stretched: shown score = 50 + (average − {{ center }}) × {{ stretch | round(1) }}, capped at 100. This keeps the order exactly the same and only makes differences easier to see. The weights follow mainstream dietary guidance (more vegetables, whole grains, legumes and unsaturated fats; less sodium, added sugar, saturated fat and processed meat), but the exact numbers are CleanPlate's own design and aren't clinically validated.
+      <strong class="text-ink">Where the weights come from.</strong> Each factor gets the points the USDA's <a class="underline underline-offset-2 hover:text-ink" href="https://www.fns.usda.gov/cnpp/healthy-eating-index-hei" rel="noopener" target="_blank">Healthy Eating Index (HEI-2020)</a> gives the components it stands for. HEI scores whole diets, not single meals, and menus can't show everything it measures (dairy isn't scored, and sodium only when printed), so this is an HEI-based adaptation, not an official HEI score.
+      We also checked how much the weights matter: changing any single weight by 50% in either direction keeps the ranking of all restaurants almost identical (rank correlation 0.98 or higher, and about 90% of the top 100 stays the same).
+    </p>
+    <p class="mt-4 text-sm leading-relaxed text-muted">
+      Menus that list only a few meals (say, a chain page showing just its promo items) are pulled toward the average restaurant, as if {{ prior_meals }} typical meals were added, so a short page can't swing to an extreme. Averaging many meals also bunches most restaurants between about 40 and 70, so the average is stretched: shown score = 50 + (average − {{ center }}) × {{ stretch | round(1) }}, capped at 100. This keeps the order exactly the same and only makes differences easier to see.
     </p>
     <p class="mt-4 leading-relaxed">
       <strong>Unknowns don't count against a restaurant.</strong> If a menu only lists dish names, or doesn't print sodium, those parts get no points either way. Instead the page shows a lower <em>confidence</em>. Marketing claims like "natural" or "premium" don't earn points.

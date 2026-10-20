@@ -55,7 +55,7 @@ def meal_of(**kw):
 
 def test_meal_scores_follow_the_formula_on_the_calibrated_scale():
     assert meal_score(report(meals=[SALAD] * 5).meals[0]) == 100
-    assert meal_score(meal_of()) == 62
+    assert meal_score(meal_of()) == 56
     assert meal_score(report(meals=[BURGER] * 5).meals[0]) == 14
 
 
@@ -64,9 +64,9 @@ def test_levels_snap_to_zero_half_or_one():
 
 
 def test_sodium_counts_only_when_published():
-    assert meal_score(meal_of(sodium_mg=500)) == 62
-    assert meal_score(meal_of(sodium_mg=700)) == 44
-    assert meal_score(meal_of(sodium_mg=1200)) == 26
+    assert meal_score(meal_of(sodium_mg=500)) == 56
+    assert meal_score(meal_of(sodium_mg=700)) == 42
+    assert meal_score(meal_of(sodium_mg=1200)) == 28
 
 
 def test_restaurant_score_averages_meals_and_rounds_to_five():
@@ -76,7 +76,7 @@ def test_restaurant_score_averages_meals_and_rounds_to_five():
 
 def test_short_menus_are_pulled_toward_the_average():
     greens = meal("Greens", vegetables=1)
-    assert menu_score(report(meals=[greens] * 5)) == 90
+    assert menu_score(report(meals=[greens] * 5)) == 85
     assert menu_score(report(meals=[greens] * 25)) == 100
 
 

@@ -19,27 +19,28 @@ OIL_LABELS = {
     "mixed": "A mix of oils",
 }
 
-# Points for a factor at full strength (level 1); level 0.5 earns half.
+# Points for a factor at full strength (level 1); level 0.5 earns half. Proportions follow the
+# USDA Healthy Eating Index (HEI-2020) components each factor stands for.
 MEAL_WEIGHTS = {
-    "vegetables": 20,
-    "whole_grains_legumes": 15,
-    "healthy_protein": 10,
-    "unsaturated_fats": 5,
-    "deep_fried": -20,
-    "processed_meat": -10,
-    "added_sugar": -10,
-    "saturated_fat": -10,
+    "vegetables": 17.5,  # total vegetables 5 + greens 2.5 + total fruits 5 + whole fruits 5
+    "whole_grains_legumes": 12.5,  # whole grains 10 + beans 2.5
+    "healthy_protein": 10,  # total protein foods 5 + seafood and plant proteins 5
+    "unsaturated_fats": 10,  # fatty acids 10
+    "deep_fried": -10,  # refined grains 10 (batter, breading)
+    "processed_meat": -5,  # part of sodium, which menus rarely print
+    "added_sugar": -10,  # added sugars 10
+    "saturated_fat": -10,  # saturated fats 10
 }
-SODIUM_WEIGHT = -15
+SODIUM_WEIGHT = -10  # sodium 10, when the menu prints it
 # Short or partial menus (e.g. a chain page listing only promo items) are pulled toward the
 # average restaurant, as if PRIOR_MEALS average meals were added. PRIOR_RAW is that average.
 PRIOR_MEALS = 6
-PRIOR_RAW = 53.2
-# Averaging many meals bunches restaurants between ~30 and ~70, so the average is stretched
-# around a center (order unchanged). Tuned on all ~1,600 scored restaurants: average ~70,
-# about a fifth scoring 80+.
-CALIBRATION_CENTER = 45
-CALIBRATION_STRETCH = 2.4
+PRIOR_RAW = 55.4
+# Averaging many meals bunches restaurants between ~40 and ~70, so the average is stretched
+# around a center (order unchanged). Tuned on all ~1,600 scored restaurants: average ~71,
+# about a quarter scoring 80+.
+CALIBRATION_CENTER = 48
+CALIBRATION_STRETCH = 2.8
 FACTOR_LABELS = {
     "vegetables": "Vegetables & fruit",
     "whole_grains_legumes": "Whole grains & legumes",
