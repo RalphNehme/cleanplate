@@ -5,36 +5,70 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>{% block title %}CleanPlate · How good is the food, really?{% endblock %}</title>
   <meta name="description" content="How healthy is the food? Restaurant food scores from 1 to 100, read from each restaurant's menu.">
-  <link rel="icon" href="/static/logo.svg?v=2" type="image/svg+xml">
+  <meta name="theme-color" content="#faf8f3" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#121412" media="(prefers-color-scheme: dark)">
+  <link rel="icon" href="/static/logo.svg?v=3" type="image/svg+xml">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,500;0,9..144,650;1,9..144,500&family=Inter:wght@400;500;600;700&display=swap">
   <script src="https://cdn.tailwindcss.com/3.4.5"></script>
+  <script>
+  {
+    const token = (name) => `rgb(var(--${name}) / <alpha-value>)`;
+    tailwind.config = {
+      darkMode: "media",
+      theme: {
+        extend: {
+          colors: {
+            bg: token("bg"), surface: token("surface"), surface2: token("surface2"),
+            ink: token("ink"), muted: token("muted"), line: token("line"),
+            accent: token("accent"), accentsoft: token("accentsoft"),
+          },
+          fontFamily: {
+            sans: ["Inter", "system-ui", "sans-serif"],
+            serif: ["Fraunces", "Georgia", "serif"],
+          },
+        },
+      },
+    };
+  }
+  </script>
   <script src="https://unpkg.com/htmx.org@2.0.3"></script>
-  <link rel="stylesheet" href="/static/app.css">
+  <link rel="stylesheet" href="/static/app.css?v=3">
   {% block head %}{% endblock %}
 </head>
-<body class="flex min-h-screen flex-col bg-stone-50 text-stone-900 antialiased">
-  <header class="sticky top-0 z-20 border-b border-stone-200 bg-white/90 backdrop-blur">
-    <nav class="mx-auto flex max-w-7xl items-center justify-between gap-4 px-4 py-3">
-      <a href="/" class="flex items-center gap-2 text-lg font-bold tracking-tight">
-        <img src="/static/logo.svg?v=2" alt="" class="h-9 w-9"> CleanPlate
+<body class="flex min-h-screen flex-col font-sans antialiased">
+  <header class="sticky top-0 z-30 border-b border-line/70 bg-bg/80 backdrop-blur-xl">
+    <nav class="mx-auto flex max-w-7xl items-center justify-between gap-4 px-4 py-3 sm:px-6">
+      <a href="/" class="flex items-center gap-2.5">
+        <img src="/static/logo.svg?v=3" alt="" class="h-9 w-9">
+        <span class="font-serif text-xl font-semibold tracking-tight">CleanPlate</span>
       </a>
-      <div class="flex items-center gap-4 text-sm font-medium text-stone-600">
+      <div class="flex items-center gap-1 text-sm font-medium text-muted">
         {% if city is defined and city %}
-        <a href="/{{ city.slug }}" class="hover:text-stone-900">{{ city.name }}</a>
-        <a href="/{{ city.slug }}/stats" class="hover:text-stone-900">Stats</a>
+        <a href="/{{ city.slug }}" class="hidden rounded-full px-3 py-1.5 hover:bg-surface2 hover:text-ink sm:block">{{ city.name }}</a>
+        <a href="/{{ city.slug }}/stats" class="rounded-full px-3 py-1.5 hover:bg-surface2 hover:text-ink">Stats</a>
         {% endif %}
-        <a href="/scores" class="hover:text-stone-900">How scores work</a>
-        <a href="/" class="rounded-lg border border-stone-300 px-2.5 py-1 hover:border-stone-500">Change city</a>
+        <a href="/scores" class="rounded-full px-3 py-1.5 hover:bg-surface2 hover:text-ink">How it works</a>
+        <a href="/" class="ml-1 rounded-full border border-line bg-surface px-3 py-1.5 text-ink hover:border-muted">Cities</a>
       </div>
     </nav>
   </header>
   <div class="flex-1">{% block body %}{% endblock %}</div>
-  <footer class="mx-auto w-full max-w-7xl px-4 py-6 text-xs text-stone-500">
-    {% if city is defined and city %}
-    Inspection data: <a class="underline" href="{{ city.source_url }}">{{ city.source_name }}</a>, updated nightly.
-    {% else %}
-    Inspection data from official city open data portals, updated nightly.
-    {% endif %}
-    Food scores are AI readings of each restaurant's published menu and can be wrong; hygiene scores are CleanPlate's conversion of official inspections. Neither is an official rating. CleanPlate is independent and not affiliated with any city government.
+  <footer class="mt-10 border-t border-line/70">
+    <div class="mx-auto flex max-w-7xl flex-col gap-3 px-4 py-8 text-xs leading-relaxed text-muted sm:flex-row sm:justify-between sm:px-6">
+      <div class="flex items-center gap-2 text-sm text-ink">
+        <img src="/static/logo.svg?v=3" alt="" class="h-6 w-6"><span class="font-serif font-semibold">CleanPlate</span>
+      </div>
+      <p class="max-w-3xl">
+        {% if city is defined and city %}
+        Inspection data: <a class="underline decoration-line underline-offset-2 hover:text-ink" href="{{ city.source_url }}">{{ city.source_name }}</a>, updated nightly.
+        {% else %}
+        Inspection data from official city open data portals, updated nightly.
+        {% endif %}
+        Food scores are AI readings of each restaurant's published menu and can be wrong; hygiene scores are CleanPlate's conversion of official inspections. Neither is an official rating. CleanPlate is independent and not affiliated with any city government.
+      </p>
+    </div>
   </footer>
 </body>
 </html>

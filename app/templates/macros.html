@@ -11,6 +11,6 @@
 {% macro official(value, city) -%}
 {%- if value -%}
 {%- set labels = {"N": "Not yet graded", "Z": "Grade pending", "P": "Grade pending"} -%}
-<span class="whitespace-nowrap text-xs text-stone-500">{{ city.official_label }}: <strong class="text-stone-700">{{ labels.get(value, value) }}</strong></span>
+<span class="whitespace-nowrap text-xs text-muted">{{ city.official_label }}: <strong class="text-ink">{{ labels.get(value, value) }}</strong></span>
 {%- endif -%}
 {%- endmacro %}
