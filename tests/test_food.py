@@ -55,8 +55,8 @@ def meal_of(**kw):
 
 def test_meal_scores_follow_the_formula_on_the_calibrated_scale():
     assert meal_score(report(meals=[SALAD] * 5).meals[0]) == 100
-    assert meal_score(meal_of()) == 70
-    assert meal_score(report(meals=[BURGER] * 5).meals[0]) == 30
+    assert meal_score(meal_of()) == 62
+    assert meal_score(report(meals=[BURGER] * 5).meals[0]) == 22
 
 
 def test_levels_snap_to_zero_half_or_one():
@@ -64,14 +64,14 @@ def test_levels_snap_to_zero_half_or_one():
 
 
 def test_sodium_counts_only_when_published():
-    assert meal_score(meal_of(sodium_mg=500)) == 70
-    assert meal_score(meal_of(sodium_mg=700)) == 55
-    assert meal_score(meal_of(sodium_mg=1200)) == 40
+    assert meal_score(meal_of(sodium_mg=500)) == 62
+    assert meal_score(meal_of(sodium_mg=700)) == 47
+    assert meal_score(meal_of(sodium_mg=1200)) == 32
 
 
 def test_restaurant_score_averages_meals_and_rounds_to_five():
-    assert menu_score(report()) == 70
-    assert menu_score(report(meals=[SALAD, BURGER, PLAIN, PLAIN, PLAIN])) == 80
+    assert menu_score(report()) == 60
+    assert menu_score(report(meals=[SALAD, BURGER, PLAIN, PLAIN, PLAIN])) == 70
 
 
 def test_oil_and_claims_do_not_change_the_score():
@@ -89,7 +89,7 @@ def test_breakdown_ranks_meals_and_reports_confidence():
     b = breakdown(report(meals=[BURGER, SALAD, PLAIN, PLAIN, PLAIN]).model_dump())
     names = [m["meal"].name for m in b["meals"]]
     assert names[0] == "Kale salad" and names[-1] == "Cheeseburger & fries"
-    assert b["share_good"] == 80
+    assert b["share_good"] == 20
     assert b["confidence"] == "medium"
     assert breakdown({"summary": "old format"}) is None
 

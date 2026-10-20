@@ -32,8 +32,9 @@ MEAL_WEIGHTS = {
 }
 SODIUM_WEIGHT = -15
 # Averaging many meals bunches restaurants between ~30 and ~70, so the average is stretched
-# around a center (order unchanged). Chosen from an 80-menu pilot to spread scores ~25-100.
-CALIBRATION_CENTER = 40
+# around a center (order unchanged). Tuned on all ~1,600 scored restaurants: average ~68,
+# about a quarter scoring 80+.
+CALIBRATION_CENTER = 44
 CALIBRATION_STRETCH = 2.0
 FACTOR_LABELS = {
     "vegetables": "Vegetables & fruit",
