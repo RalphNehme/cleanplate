@@ -10,8 +10,8 @@
       How good is the food, <em class="font-medium text-accent">really?</em>
     </h1>
     <p class="mx-auto mt-6 max-w-2xl text-lg leading-relaxed text-muted">
-      CleanPlate reads every restaurant's actual menu. Fresh, whole ingredients score high;
-      deep-fried, ultra-processed and seed-oil cooking score low.
+      CleanPlate reads every restaurant's actual menu and scores each meal. Vegetables, whole grains,
+      legumes and lean protein score high; deep-fried, processed and sugar-heavy meals score low.
     </p>
   </div>
 </section>
@@ -63,8 +63,8 @@
     <ol class="mt-5 grid gap-5 sm:grid-cols-3">
       {% for title, text in [
         ("Find the menu", "We match each restaurant to its website and fetch the menu it publishes, HTML or PDF."),
-        ("Read every dish", "AI reads the menu: fried or grilled, whole or processed, and which oil it's cooked in."),
-        ("Score with evidence", "A fixed formula turns that into a 1–100 score, with the menu lines that drove it.")] %}
+        ("Score every meal", "AI rates each main meal: vegetables, whole grains, protein, frying, processed meat, sugar, saturated fat."),
+        ("Average with evidence", "The restaurant's score averages its meals, with its healthiest and least healthy dishes shown.")] %}
       <li class="card p-6">
         <span class="font-serif text-4xl font-semibold text-accent">{{ loop.index }}</span>
         <div class="mt-3 font-semibold">{{ title }}</div>

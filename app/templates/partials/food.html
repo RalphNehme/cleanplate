@@ -1,5 +1,6 @@
 {% from "macros.html" import ring %}
 {% set a = r.analysis.data if r.analysis else none %}
+{% set b = breakdown(a) if a else none %}
 <section id="food" class="card p-6 sm:p-8">
   {% if r.food_score is not none and a %}
   {% set fb = band(r.food_score) %}
@@ -18,55 +19,80 @@
     <div class="min-w-0 flex-1 space-y-6">
       <p class="font-serif text-xl leading-snug sm:text-2xl">{{ a.summary }}</p>
 
-      <div class="flex flex-wrap gap-2">
-        {% set oil = a.oil.stated %}
-        {% if oil in ("olive", "avocado", "animal") %}
-        <span class="chip s-excellent">Cooks with {{ oil_labels[oil] | lower }}</span>
-        {% elif oil == "seed" %}
-        <span class="chip s-poor">Cooks with seed oils</span>
-        {% elif oil == "mixed" %}
-        <span class="chip s-fair">{{ oil_labels.mixed }}</span>
-        {% elif likely_seed_oil(a) %}
-        <span class="chip s-fair" title="The menu doesn't name its frying oil; most fryers use seed oils.">Fried items, oil not stated (likely seed oil)</span>
-        {% else %}
-        <span class="chip s-none">Oil not stated on menu</span>
-        {% endif %}
-        {% if r.reported_oil %}<span class="chip s-none">Visitors report: {{ oil_labels[r.reported_oil] }}</span>{% endif %}
-        {% for m in a.quality_markers[:6] %}<span class="chip s-good">{{ m }}</span>{% endfor %}
+      {% if b %}
+      <div class="grid grid-cols-3 gap-3 text-center">
+        <div class="rounded-2xl bg-surface2 px-3 py-3">
+          <div class="text-2xl font-semibold tabular-nums">{{ b.meals | length }}</div>
+          <div class="text-xs text-muted">meals scored</div>
+        </div>
+        <div class="rounded-2xl bg-surface2 px-3 py-3">
+          <div class="text-2xl font-semibold tabular-nums">{{ b.share_good }}%</div>
+          <div class="text-xs text-muted">score 70+</div>
+        </div>
+        <div class="rounded-2xl bg-surface2 px-3 py-3" title="How much the menu describes its dishes. Unknowns don't change the score; they lower confidence.">
+          <div class="text-2xl font-semibold">{{ b.confidence | title }}</div>
+          <div class="text-xs text-muted">confidence</div>
+        </div>
       </div>
 
-      <div>
-        <h3 class="text-xs font-semibold uppercase tracking-widest text-muted">What's on the menu</h3>
-        <dl class="mt-3 grid gap-x-8 gap-y-3 sm:grid-cols-2">
-          {% for label, key, good in [("Whole foods", "whole_food_share", true), ("Vegetable-forward", "vegetable_forward_share", true), ("Deep-fried", "fried_share", false), ("Ultra-processed", "ultra_processed_share", false), ("Sweets & sugary drinks", "sweets_share", false)] %}
-          {% set pct = (a[key] * 100) | round | int %}
-          <div>
-            <div class="flex justify-between text-sm"><dt class="text-muted">{{ label }}</dt><dd class="font-semibold tabular-nums">{{ pct }}%</dd></div>
-            <div class="mt-1.5 h-1.5 overflow-hidden rounded-full bg-surface2">
-              <div class="bar h-full rounded-full {{ 's-excellent' if good else 's-poor' }}" style="width: {{ [pct, 100] | min }}%"></div>
-            </div>
-          </div>
-          {% endfor %}
-        </dl>
-      </div>
-
-      {% if a.highlights %}
-      {% set pos = a.highlights | selectattr("effect", "equalto", "positive") | list %}
-      {% set neg = a.highlights | selectattr("effect", "equalto", "negative") | list %}
       <div class="grid gap-4 sm:grid-cols-2">
-        {% for title, items, key, sign in [("What helps", pos, "excellent", "+"), ("What hurts", neg, "poor", "–")] if items %}
+        {% for title, items in [("Healthiest meals", b.best), ("Least healthy meals", b.worst)] if items %}
         <div class="rounded-2xl bg-surface2 p-4">
           <h3 class="text-xs font-semibold uppercase tracking-widest text-muted">{{ title }}</h3>
-          <ul class="mt-2 space-y-2.5 text-sm">
-            {% for h in items %}
-            <li class="flex gap-2">
-              <span class="s-{{ key }} mt-0.5 shrink-0 font-bold" style="color: var(--c)">{{ sign }}</span>
-              <span><q class="font-medium">{{ h.quote }}</q><span class="block text-xs text-muted">{{ h.reason }}</span></span>
+          <ul class="mt-3 space-y-3 text-sm">
+            {% for m in items %}
+            <li class="flex gap-3">
+              {{ ring(m.score, "h-9 w-9 text-xs") }}
+              <span><span class="font-medium">{{ m.meal.name }}</span><span class="block text-xs text-muted">{{ m.meal.note }}</span></span>
             </li>
             {% endfor %}
           </ul>
         </div>
         {% endfor %}
+      </div>
+
+      <details class="group/meals rounded-2xl border border-line">
+        <summary class="flex cursor-pointer items-center justify-between px-4 py-3 text-sm font-medium">
+          All {{ b.meals | length }} meals
+          <span class="text-muted transition group-open/meals:rotate-45">+</span>
+        </summary>
+        <ul class="divide-y divide-line border-t border-line text-sm">
+          {% for m in b.meals %}
+          <li class="flex items-start gap-3 px-4 py-2.5">
+            {{ ring(m.score, "h-8 w-8 text-[11px]") }}
+            <div class="min-w-0 flex-1">
+              <div class="font-medium">{{ m.meal.name }}</div>
+              <div class="mt-1 flex flex-wrap gap-1">
+                {% for key, label in factor_labels.items() if m.meal[key] >= 0.5 %}
+                {% set good = key in ("vegetables", "whole_grains_legumes", "healthy_protein", "unsaturated_fats") %}
+                <span class="chip {{ 's-excellent' if good else 's-poor' }}">{{ label }}{% if m.meal[key] < 1 %} (some){% endif %}</span>
+                {% endfor %}
+                {% if m.meal.sodium_mg is not none %}<span class="chip s-none">{{ m.meal.sodium_mg }} mg sodium</span>{% endif %}
+              </div>
+            </div>
+          </li>
+          {% endfor %}
+        </ul>
+      </details>
+      {% if b.report.dessert_count or b.report.sugary_drink_count %}
+      <p class="text-sm text-muted">Scored separately: {{ b.report.dessert_count }} desserts and {{ b.report.sugary_drink_count }} sugary drinks on the menu don't count toward the meal average.</p>
+      {% endif %}
+      {% endif %}
+
+      <div class="rounded-2xl border border-line p-4 text-sm">
+        <div class="flex flex-wrap items-center gap-2">
+          <span class="font-medium">Cooking oil:</span>
+          {% set oil = a.oil.stated %}
+          {% if oil in oil_labels %}<span class="chip s-none">{{ oil_labels[oil] }}</span>{% else %}<span class="text-muted">not stated on the menu</span>{% endif %}
+          {% if r.reported_oil %}<span class="chip s-none">Visitors report: {{ oil_labels[r.reported_oil] }}</span>{% endif %}
+        </div>
+        <p class="mt-1 text-xs text-muted">Shown for information. It doesn't change the score. <a href="/scores#seed-oils" class="underline underline-offset-2 hover:text-ink">Why?</a></p>
+      </div>
+
+      {% if a.quality_markers %}
+      <div class="flex flex-wrap items-center gap-2 text-sm">
+        <span class="text-muted">Menu claims:</span>
+        {% for m in a.quality_markers[:6] %}<span class="rounded-full border border-line px-2.5 py-0.5 text-xs">{{ m }}</span>{% endfor %}
       </div>
       {% endif %}
 
@@ -87,7 +113,7 @@
       Eaten here? Report what you saw
       <span class="text-muted transition group-open:rotate-45">+</span>
     </summary>
-    <p class="mt-2 text-xs text-muted">With {{ min_reports }} or more reports, visitors count for half of the food score.</p>
+    <p class="mt-2 text-xs text-muted">With {{ min_reports }} or more reports on ingredients and healthy options, visitors count for half of the food score. Cooking-oil answers are shown for information only.</p>
     <form class="mt-4 space-y-4" hx-post="/r/{{ r.id }}/report" hx-target="#food" hx-swap="outerHTML">
       {% for legend, name, options in [
         ("What do they cook with?", "oil", [("seed", "Seed oils"), ("olive", "Olive oil"), ("avocado", "Avocado oil"), ("animal", "Butter, ghee or tallow"), ("", "Not sure")]),

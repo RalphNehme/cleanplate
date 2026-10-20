@@ -18,9 +18,9 @@
       {% for title, text in [
         ("Find the restaurant online", "Each restaurant is matched to OpenStreetMap by name and location, which gives its real cuisine, diet options and website."),
         ("Read the menu", "We fetch the menu from the restaurant's own website (HTML or PDF), respecting each site's robots.txt and skipping delivery apps."),
-        ("AI reads every dish", "Claude (an AI model by Anthropic) estimates what share of the menu is deep-fried, ultra-processed, sweets, whole-food or vegetable-forward. It copies any quality claims (\"organic\", \"grass-fed\", \"house-made\") and any oil the menu names, quoting the menu as evidence."),
-        ("A fixed formula turns that into a score", "Starting at 50: up to +30 for whole foods, +10 for vegetable-forward dishes, up to +10 for quality claims, +10 for olive oil, avocado oil, butter, ghee or tallow; up to −25 for deep-fried items, −20 for ultra-processed items, −10 for sweets, −15 for seed oils named on the menu, and −5 for a fried-heavy menu that doesn't name its oil."),
-        ("Visitors refine it", "Once " ~ min_reports ~ " visitors report on cooking oil, ingredients and healthy options, their average counts for half of the score.")] %}
+        ("Score each main meal", "Claude (an AI model by Anthropic) picks up to 25 representative main meals, including their default sides and sauces, and rates each factor below as absent (0), moderate (½) or substantial (1). Desserts and drinks are counted separately so a long dessert list doesn't drag down good mains."),
+        ("Average the meals", "The restaurant's score is the average of its meals, stretched so differences between restaurants are easy to see, and rounded to the nearest 5. The page also shows what share of its meals score 70 or more."),
+        ("Visitors refine it", "Once " ~ min_reports ~ " visitors report on ingredients and healthy options, their average counts for half of the score.")] %}
       <li class="flex gap-5">
         <span class="font-serif text-3xl font-semibold leading-none text-accent">{{ loop.index }}</span>
         <div>
@@ -30,9 +30,38 @@
       </li>
       {% endfor %}
     </ol>
-    <p class="mt-8 leading-relaxed">Restaurants without a readable menu aren't scored or shown, so no score is a guess from the restaurant's name or cuisine.</p>
-    <p class="mt-4 rounded-2xl border border-line bg-surface2 p-5 text-sm leading-relaxed text-muted">
-      <strong class="text-ink">A note on seed oils.</strong> The seed-oil penalty is CleanPlate's own editorial choice. Major health organizations, including the American Heart Association, consider seed oils part of a healthy diet, so weigh that part of the score accordingly. AI reading can also make mistakes, so every score links to the menu it came from.
+
+    <div class="card mt-8 overflow-hidden">
+      <table class="w-full text-sm">
+        <thead class="bg-surface2 text-left text-xs uppercase tracking-widest text-muted">
+          <tr><th class="px-5 py-3 font-semibold">Each meal starts at 50</th><th class="px-5 py-3 text-right font-semibold">Points at full strength</th></tr>
+        </thead>
+        <tbody class="divide-y divide-line">
+          {% for key, w in weights.items() %}
+          <tr><td class="px-5 py-2.5">{{ factor_labels[key] }}</td>
+            <td class="px-5 py-2.5 text-right font-semibold tabular-nums s-{{ 'excellent' if w > 0 else 'poor' }}" style="color: var(--c)">{{ "%+d" | format(w) }}</td></tr>
+          {% endfor %}
+          <tr><td class="px-5 py-2.5">Sodium, when the menu prints it (over 600 mg: half, over 1,000 mg: full)</td>
+            <td class="px-5 py-2.5 text-right font-semibold tabular-nums s-poor" style="color: var(--c)">{{ "%+d" | format(sodium_weight) }}</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="mt-4 text-sm leading-relaxed text-muted">
+      Averaging many meals bunches most restaurants between about 30 and 70, so the average is stretched: shown score = 50 + (average − {{ center }}) × {{ stretch | round(1) }}, capped at 100. This keeps the order exactly the same and only makes differences easier to see. The weights follow mainstream dietary guidance (more vegetables, whole grains, legumes and unsaturated fats; less sodium, added sugar, saturated fat and processed meat), but the exact numbers are CleanPlate's own design and aren't clinically validated.
+    </p>
+    <p class="mt-4 leading-relaxed">
+      <strong>Unknowns don't count against a restaurant.</strong> If a menu only lists dish names, or doesn't print sodium, those parts get no points either way. Instead the page shows a lower <em>confidence</em>. Marketing claims like "natural" or "premium" don't earn points.
+    </p>
+    <p class="mt-4 leading-relaxed">Restaurants without a readable menu aren't scored or shown, so no score is a guess from the restaurant's name or cuisine.</p>
+  </section>
+
+  <section id="seed-oils" class="mt-14 scroll-mt-24">
+    <h2 class="font-serif text-3xl font-semibold">Seed oils</h2>
+    <p class="mt-3 leading-relaxed text-muted">
+      Many people want to avoid seed oils (canola, soybean, corn, sunflower, "vegetable" oil), so CleanPlate records any cooking oil a menu names, and visitors can report what a kitchen uses. You can filter a city's map to <strong class="text-ink">"No seed oils"</strong> to see restaurants whose menu or visitors name olive oil, avocado oil, butter, ghee or tallow.
+    </p>
+    <p class="mt-3 leading-relaxed text-muted">
+      The oil doesn't change the food score. Mainstream nutrition guidance, including the American Heart Association's, recommends unsaturated oils such as olive, canola and soybean over saturated fats such as butter and tallow, and the evidence doesn't support a blanket seed-oil penalty. Butter, ghee and tallow count toward saturated fat like any other ingredient.
     </p>
   </section>
 
