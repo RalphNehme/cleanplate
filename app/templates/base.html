@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>{% block title %}CleanPlate · How good is the food, really?{% endblock %}</title>
   <meta name="description" content="How healthy is the food? Restaurant food scores from 1 to 100, read from each restaurant's menu.">
-  <link rel="icon" href="/static/logo.svg" type="image/svg+xml">
+  <link rel="icon" href="/static/logo.svg?v=2" type="image/svg+xml">
   <script src="https://cdn.tailwindcss.com/3.4.5"></script>
   <script src="https://unpkg.com/htmx.org@2.0.3"></script>
   <link rel="stylesheet" href="/static/app.css">
@@ -15,7 +15,7 @@
   <header class="sticky top-0 z-20 border-b border-stone-200 bg-white/90 backdrop-blur">
     <nav class="mx-auto flex max-w-7xl items-center justify-between gap-4 px-4 py-3">
       <a href="/" class="flex items-center gap-2 text-lg font-bold tracking-tight">
-        <img src="/static/logo.svg" alt="" class="h-9 w-9"> CleanPlate
+        <img src="/static/logo.svg?v=2" alt="" class="h-9 w-9"> CleanPlate
       </a>
       <div class="flex items-center gap-4 text-sm font-medium text-stone-600">
         {% if city is defined and city %}
