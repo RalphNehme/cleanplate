@@ -2,37 +2,53 @@
 {% from "macros.html" import ring %}
 {% block title %}How scores work · CleanPlate{% endblock %}
 {% block body %}
-<main class="mx-auto max-w-3xl space-y-8 px-4 py-10 text-stone-700">
-  <section>
-    <h1 class="text-3xl font-bold text-stone-900">How scores work</h1>
-    <p class="mt-2">Scores run from 1 to 100. Higher is always better.</p>
-    <div class="mt-4 flex flex-wrap gap-4 text-sm">
-      {% for s, label in [(95, "90–100 Excellent"), (87, "85–89 Good"), (77, "70–84 Fair"), (52, "Under 70 Poor")] %}
-      <span class="flex items-center gap-2">{{ ring(s, "h-9 w-9 text-sm") }} {{ label }}</span>
+<main class="mx-auto max-w-3xl px-4 py-10 sm:px-6 sm:py-16">
+  <p class="text-xs font-semibold uppercase tracking-widest text-accent">Method</p>
+  <h1 class="mt-2 font-serif text-5xl font-semibold tracking-tight">How scores work</h1>
+  <p class="mt-4 text-lg leading-relaxed text-muted">Scores run from 1 to 100. Higher is always better.</p>
+  <div class="mt-6 flex flex-wrap gap-x-6 gap-y-3 text-sm">
+    {% for s, label in [(95, "90–100 Excellent"), (87, "85–89 Good"), (77, "70–84 Fair"), (52, "Under 70 Poor")] %}
+    <span class="flex items-center gap-2">{{ ring(s, "h-10 w-10 text-sm") }} {{ label }}</span>
+    {% endfor %}
+  </div>
+
+  <section class="mt-14">
+    <h2 class="font-serif text-3xl font-semibold">Food score</h2>
+    <ol class="mt-6 space-y-6">
+      {% for title, text in [
+        ("Find the restaurant online", "Each restaurant is matched to OpenStreetMap by name and location, which gives its real cuisine, diet options and website."),
+        ("Read the menu", "We fetch the menu from the restaurant's own website (HTML or PDF), respecting each site's robots.txt and skipping delivery apps."),
+        ("AI reads every dish", "Claude (an AI model by Anthropic) estimates what share of the menu is deep-fried, ultra-processed, sweets, whole-food or vegetable-forward. It copies any quality claims (\"organic\", \"grass-fed\", \"house-made\") and any oil the menu names, quoting the menu as evidence."),
+        ("A fixed formula turns that into a score", "Starting at 50: up to +30 for whole foods, +10 for vegetable-forward dishes, up to +10 for quality claims, +10 for olive oil, avocado oil, butter, ghee or tallow; up to −25 for deep-fried items, −20 for ultra-processed items, −10 for sweets, −15 for seed oils named on the menu, and −5 for a fried-heavy menu that doesn't name its oil."),
+        ("Visitors refine it", "Once " ~ min_reports ~ " visitors report on cooking oil, ingredients and healthy options, their average counts for half of the score.")] %}
+      <li class="flex gap-5">
+        <span class="font-serif text-3xl font-semibold leading-none text-accent">{{ loop.index }}</span>
+        <div>
+          <div class="font-semibold">{{ title }}</div>
+          <p class="mt-1 leading-relaxed text-muted">{{ text }}</p>
+        </div>
+      </li>
       {% endfor %}
-    </div>
-  </section>
-
-  <section class="space-y-2">
-    <h2 class="text-xl font-semibold text-stone-900">Food score</h2>
-    <ol class="list-decimal space-y-1 pl-5">
-      <li><strong>Find the restaurant online.</strong> Each restaurant is matched to OpenStreetMap by name and location, which gives its real cuisine, diet options and website.</li>
-      <li><strong>Read the menu.</strong> We fetch the menu from the restaurant's own website (HTML or PDF), respecting each site's robots.txt and skipping delivery apps.</li>
-      <li><strong>AI reads every dish.</strong> Claude (an AI model by Anthropic) estimates what share of the menu is deep-fried, ultra-processed, sweets, whole-food or vegetable-forward, and copies any quality claims ("organic", "grass-fed", "house-made") and any oil the menu names, quoting the menu as evidence.</li>
-      <li><strong>A fixed formula turns that into a score.</strong> Starting at 50: up to +30 for whole foods, +10 for vegetable-forward dishes, up to +10 for quality claims, +10 for olive oil, avocado oil, butter, ghee or tallow; up to −25 for deep-fried items, −20 for ultra-processed items, −10 for sweets, −15 for seed oils named on the menu, and −5 for a fried-heavy menu that doesn't name its oil.</li>
-      <li><strong>Visitors refine it.</strong> Once {{ min_reports }} visitors report on cooking oil, ingredients and healthy options, their average counts for half of the score.</li>
     </ol>
-    <p>Restaurants without a readable menu aren't scored or shown, so no score is a guess from the restaurant's name or cuisine.</p>
-    <p class="rounded-xl bg-stone-100 p-3 text-sm">The seed-oil penalty is CleanPlate's own editorial choice. Major health organizations, including the American Heart Association, consider seed oils part of a healthy diet, so weigh that part of the score accordingly. AI reading can also make mistakes, so every score links to the menu it came from.</p>
+    <p class="mt-8 leading-relaxed">Restaurants without a readable menu aren't scored or shown, so no score is a guess from the restaurant's name or cuisine.</p>
+    <p class="mt-4 rounded-2xl border border-line bg-surface2 p-5 text-sm leading-relaxed text-muted">
+      <strong class="text-ink">A note on seed oils.</strong> The seed-oil penalty is CleanPlate's own editorial choice. Major health organizations, including the American Heart Association, consider seed oils part of a healthy diet, so weigh that part of the score accordingly. AI reading can also make mistakes, so every score links to the menu it came from.
+    </p>
   </section>
 
-  <section class="space-y-2">
-    <h2 class="text-xl font-semibold text-stone-900">Hygiene score</h2>
-    <p>Shown smaller, from each restaurant's latest health inspection.</p>
-    <ul class="list-disc space-y-1 pl-5">
-      <li><strong>New York City:</strong> violation points become 1–100 in line with the official grade (A is 85–100, B is 70–84, C is below 70). A closure by the Health Department caps it at 30.</li>
-      <li><strong>Chicago:</strong> violations are weighted by severity (Priority 7, Priority Foundation 4, Core 2). A Fail caps it at 60 and a Pass with Conditions at 84. Inspections from July 2018 onward.</li>
-    </ul>
+  <section class="mt-14">
+    <h2 class="font-serif text-3xl font-semibold">Hygiene score</h2>
+    <p class="mt-3 leading-relaxed text-muted">Shown smaller, from each restaurant's latest health inspection.</p>
+    <div class="mt-5 grid gap-4 sm:grid-cols-2">
+      <div class="card p-5">
+        <div class="font-semibold">New York City</div>
+        <p class="mt-1 text-sm leading-relaxed text-muted">Violation points become 1–100 in line with the official grade (A is 85–100, B is 70–84, C is below 70). A closure by the Health Department caps it at 30.</p>
+      </div>
+      <div class="card p-5">
+        <div class="font-semibold">Chicago</div>
+        <p class="mt-1 text-sm leading-relaxed text-muted">Violations are weighted by severity (Priority 7, Priority Foundation 4, Core 2). A Fail caps it at 60 and a Pass with Conditions at 84. Inspections from July 2018 onward.</p>
+      </div>
+    </div>
   </section>
 </main>
 {% endblock %}

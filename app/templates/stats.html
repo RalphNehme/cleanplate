@@ -4,30 +4,40 @@
 {% block body %}
 {% set t = s.totals %}
 {% set oil_names = {"seed": "Seed oils named", "olive": "Olive oil", "avocado": "Avocado oil", "animal": "Butter, ghee or tallow", "mixed": "Mixed / seed-oil free", "not_stated": "Not stated"} %}
-<main class="mx-auto max-w-5xl space-y-6 px-4 py-6">
-  <section class="flex flex-wrap items-center gap-6">
+<main class="mx-auto max-w-5xl space-y-6 px-4 py-6 sm:px-6 sm:py-10">
+  <section class="flex flex-wrap items-end gap-6">
     <div class="flex-1">
-      <h1 class="text-2xl font-bold">{{ city.name }} food, by the numbers</h1>
-      <p class="text-stone-500">{{ "{:,}".format(t.restaurants) }} restaurants with a menu score</p>
+      <p class="text-xs font-semibold uppercase tracking-widest text-accent">{{ city.name }}</p>
+      <h1 class="mt-1 font-serif text-4xl font-semibold tracking-tight sm:text-5xl">Food, by the numbers</h1>
+      <p class="mt-2 text-muted">{{ "{:,}".format(t.restaurants) }} restaurants with a menu score</p>
     </div>
-    <div class="flex items-center gap-3"><span class="text-sm text-stone-500">Avg food</span>{{ ring(t.avg_food | int if t.avg_food is not none else none, "h-14 w-14 text-xl") }}</div>
+    <div class="card flex items-center gap-4 px-5 py-4">
+      {{ ring(t.avg_food | int if t.avg_food is not none else none, "h-16 w-16 text-2xl") }}
+      <div><div class="text-xs font-semibold uppercase tracking-widest text-muted">Average</div><div class="font-serif text-lg font-semibold">Food score</div></div>
+    </div>
   </section>
 
   {% if s.areas %}
-  <section class="rounded-2xl border border-stone-200 bg-white p-5">
-    <h2 class="mb-4 font-semibold">Food score by {{ "borough" if city.slug == "nyc" else "ZIP code (10 largest)" }}</h2>
-    <div class="space-y-3">
+  <section class="card p-6">
+    <h2 class="font-serif text-xl font-semibold">By {{ "borough" if city.slug == "nyc" else "ZIP code" }}</h2>
+    <p class="text-sm text-muted">{{ "All boroughs" if city.slug == "nyc" else "The 10 ZIP codes with the most scored restaurants" }}</p>
+    <div class="mt-5 space-y-4">
       {% for a in s.areas %}
       {% set total = a.excellent + a.good + a.fair + a.poor %}
       <div>
-        <div class="mb-1 flex justify-between text-sm"><span class="font-medium">{{ a.area }}</span>
-          <span class="text-stone-500">avg {{ a.avg_food | int }} · {{ "{:,}".format(a.restaurants) }} restaurants</span></div>
-        <div class="flex h-3.5 overflow-hidden rounded-full bg-stone-100">
-          {% for key in ["excellent", "good", "fair", "poor"] %}
+        <div class="mb-1.5 flex justify-between text-sm"><span class="font-medium">{{ a.area }}</span>
+          <span class="text-muted">avg <strong class="text-ink">{{ a.avg_food | int }}</strong> · {{ "{:,}".format(a.restaurants) }} places</span></div>
+        <div class="flex h-2.5 gap-0.5 overflow-hidden rounded-full bg-surface2">
+          {% for key in ["excellent", "good", "fair", "poor"] if a[key] %}
           <div class="bar s-{{ key }}" style="width: {{ 100 * a[key] / total }}%" title="{{ key | title }}: {{ a[key] }}"></div>
           {% endfor %}
         </div>
       </div>
+      {% endfor %}
+    </div>
+    <div class="mt-5 flex flex-wrap gap-4 text-xs text-muted">
+      {% for key, label in [("excellent", "90+"), ("good", "85–89"), ("fair", "70–84"), ("poor", "Under 70")] %}
+      <span class="flex items-center gap-1.5 s-{{ key }}"><span class="dot"></span><span class="text-muted">{{ label }}</span></span>
       {% endfor %}
     </div>
   </section>
@@ -35,39 +45,47 @@
 
   <div class="grid gap-6 md:grid-cols-2">
     {% for title, rows in [("Healthiest cuisines", s.healthiest_cuisines), ("Least healthy cuisines", s.least_healthy_cuisines)] %}
-    <section class="rounded-2xl border border-stone-200 bg-white p-5">
-      <h2 class="mb-3 font-semibold">{{ title }}</h2>
-      <table class="w-full text-sm">
+    <section class="card p-6">
+      <h2 class="font-serif text-xl font-semibold">{{ title }}</h2>
+      <ul class="mt-4 divide-y divide-line">
         {% for c in rows %}
-        <tr class="border-t border-stone-100"><td class="py-1.5">{{ c.cuisine }}</td>
-          <td class="text-right text-stone-500">{{ c.restaurants }} places</td>
-          <td class="w-12 text-right font-semibold">{{ c.avg_food | int }}</td></tr>
+        <li class="flex items-center gap-3 py-2.5 text-sm">
+          {{ ring(c.avg_food | int, "h-9 w-9 text-xs") }}
+          <span class="flex-1 font-medium">{{ c.cuisine }}</span>
+          <span class="text-muted">{{ c.restaurants }} places</span>
+        </li>
+        {% else %}
+        <li class="py-2.5 text-sm text-muted">Not enough data yet.</li>
         {% endfor %}
-      </table>
+      </ul>
     </section>
     {% endfor %}
   </div>
 
   <div class="grid gap-6 md:grid-cols-2">
-    <section class="rounded-2xl border border-stone-200 bg-white p-5">
-      <h2 class="mb-3 font-semibold">Cooking oil named on menus</h2>
-      <table class="w-full text-sm">
+    <section class="card p-6">
+      <h2 class="font-serif text-xl font-semibold">Cooking oil named on menus</h2>
+      {% set oil_total = s.oils | sum(attribute="restaurants") %}
+      <ul class="mt-4 space-y-3">
         {% for o in s.oils %}
-        <tr class="border-t border-stone-100"><td class="py-1.5">{{ oil_names.get(o.oil, o.oil) }}</td>
-          <td class="text-right font-semibold">{{ "{:,}".format(o.restaurants) }}</td></tr>
-        {% endfor %}
-      </table>
-    </section>
-    <section class="rounded-2xl border border-stone-200 bg-white p-5">
-      <h2 class="mb-3 font-semibold">Most common quality claims</h2>
-      <table class="w-full text-sm">
-        {% for m in s.markers %}
-        <tr class="border-t border-stone-100"><td class="py-1.5">{{ m.marker }}</td>
-          <td class="text-right font-semibold">{{ "{:,}".format(m.restaurants) }}</td></tr>
+        <li class="text-sm">
+          <div class="flex justify-between"><span>{{ oil_names.get(o.oil, o.oil) }}</span><span class="font-semibold tabular-nums">{{ "{:,}".format(o.restaurants) }}</span></div>
+          <div class="mt-1 h-1.5 overflow-hidden rounded-full bg-surface2"><div class="h-full rounded-full bg-accent" style="width: {{ 100 * o.restaurants / oil_total }}%"></div></div>
+        </li>
         {% else %}
-        <tr><td class="text-stone-500">None yet.</td></tr>
+        <li class="text-sm text-muted">Not enough data yet.</li>
         {% endfor %}
-      </table>
+      </ul>
+    </section>
+    <section class="card p-6">
+      <h2 class="font-serif text-xl font-semibold">Most common quality claims</h2>
+      <div class="mt-4 flex flex-wrap gap-2">
+        {% for m in s.markers %}
+        <span class="inline-flex items-center gap-1.5 rounded-full border border-line bg-surface2 px-3 py-1 text-sm">{{ m.marker }} <span class="text-xs font-semibold text-muted">{{ m.restaurants }}</span></span>
+        {% else %}
+        <span class="text-sm text-muted">None yet.</span>
+        {% endfor %}
+      </div>
     </section>
   </div>
 </main>

@@ -1,21 +1,24 @@
 {% from "macros.html" import ring %}
 {% set a = r.analysis.data if r.analysis else none %}
-<section id="food" class="rounded-2xl border border-stone-200 bg-white p-5">
+<section id="food" class="card p-6 sm:p-8">
   {% if r.food_score is not none and a %}
-  <div class="flex flex-col gap-5 sm:flex-row">
-    <div class="flex items-center gap-4 sm:flex-col sm:items-start">
-      {{ ring(r.food_score, "h-24 w-24 text-4xl") }}
+  {% set fb = band(r.food_score) %}
+  <div class="flex flex-col gap-6 sm:flex-row sm:items-start">
+    <div class="flex items-center gap-4 sm:w-40 sm:flex-col sm:items-start">
+      {{ ring(r.food_score, "h-28 w-28 text-5xl") }}
       <div>
-        <div class="text-sm font-semibold">Food score</div>
-        <div class="text-xs text-stone-500">
+        <div class="text-xs font-semibold uppercase tracking-widest text-muted">Food score</div>
+        <div class="mt-1 chip s-{{ fb.key }}">{{ fb.label }}</div>
+        <div class="mt-2 text-xs text-muted">
           {% if r.food_source == "menu+reports" %}Menu + {{ r.food_reports_count }} visitor reports{% else %}From the menu{% endif %}
         </div>
       </div>
     </div>
-    <div class="min-w-0 flex-1 space-y-3">
-      <p class="text-stone-700">{{ a.summary }}</p>
 
-      <div class="flex flex-wrap gap-2 text-xs">
+    <div class="min-w-0 flex-1 space-y-6">
+      <p class="font-serif text-xl leading-snug sm:text-2xl">{{ a.summary }}</p>
+
+      <div class="flex flex-wrap gap-2">
         {% set oil = a.oil.stated %}
         {% if oil in ("olive", "avocado", "animal") %}
         <span class="chip s-excellent">Cooks with {{ oil_labels[oil] | lower }}</span>
@@ -32,68 +35,77 @@
         {% for m in a.quality_markers[:6] %}<span class="chip s-good">{{ m }}</span>{% endfor %}
       </div>
 
-      <dl class="grid grid-cols-2 gap-x-6 gap-y-1 text-sm sm:grid-cols-3">
-        {% for label, key, good in [("Whole foods", "whole_food_share", true), ("Vegetable-forward", "vegetable_forward_share", true), ("Deep-fried", "fried_share", false), ("Ultra-processed", "ultra_processed_share", false), ("Sweets", "sweets_share", false)] %}
-        <div class="flex justify-between gap-2 border-b border-stone-100 py-1">
-          <dt class="text-stone-500">{{ label }}</dt>
-          <dd class="font-semibold {{ 'text-green-700' if good else 'text-red-700' }}">{{ (a[key] * 100) | round | int }}%</dd>
-        </div>
-        {% endfor %}
-      </dl>
+      <div>
+        <h3 class="text-xs font-semibold uppercase tracking-widest text-muted">What's on the menu</h3>
+        <dl class="mt-3 grid gap-x-8 gap-y-3 sm:grid-cols-2">
+          {% for label, key, good in [("Whole foods", "whole_food_share", true), ("Vegetable-forward", "vegetable_forward_share", true), ("Deep-fried", "fried_share", false), ("Ultra-processed", "ultra_processed_share", false), ("Sweets & sugary drinks", "sweets_share", false)] %}
+          {% set pct = (a[key] * 100) | round | int %}
+          <div>
+            <div class="flex justify-between text-sm"><dt class="text-muted">{{ label }}</dt><dd class="font-semibold tabular-nums">{{ pct }}%</dd></div>
+            <div class="mt-1.5 h-1.5 overflow-hidden rounded-full bg-surface2">
+              <div class="bar h-full rounded-full {{ 's-excellent' if good else 's-poor' }}" style="width: {{ [pct, 100] | min }}%"></div>
+            </div>
+          </div>
+          {% endfor %}
+        </dl>
+      </div>
 
       {% if a.highlights %}
-      <ul class="space-y-1.5 text-sm">
-        {% for h in a.highlights %}
-        <li class="flex gap-2">
-          <span class="shrink-0 font-bold {{ 'text-green-700' if h.effect == 'positive' else 'text-red-700' }}">{{ "+" if h.effect == "positive" else "–" }}</span>
-          <span><q class="italic">{{ h.quote }}</q> <span class="text-stone-500">· {{ h.reason }}</span></span>
-        </li>
+      {% set pos = a.highlights | selectattr("effect", "equalto", "positive") | list %}
+      {% set neg = a.highlights | selectattr("effect", "equalto", "negative") | list %}
+      <div class="grid gap-4 sm:grid-cols-2">
+        {% for title, items, key, sign in [("What helps", pos, "excellent", "+"), ("What hurts", neg, "poor", "–")] if items %}
+        <div class="rounded-2xl bg-surface2 p-4">
+          <h3 class="text-xs font-semibold uppercase tracking-widest text-muted">{{ title }}</h3>
+          <ul class="mt-2 space-y-2.5 text-sm">
+            {% for h in items %}
+            <li class="flex gap-2">
+              <span class="s-{{ key }} mt-0.5 shrink-0 font-bold" style="color: var(--c)">{{ sign }}</span>
+              <span><q class="font-medium">{{ h.quote }}</q><span class="block text-xs text-muted">{{ h.reason }}</span></span>
+            </li>
+            {% endfor %}
+          </ul>
+        </div>
         {% endfor %}
-      </ul>
+      </div>
       {% endif %}
 
-      <p class="text-xs text-stone-500">
+      <p class="text-xs text-muted">
         Analyzed by AI ({{ r.analysis.model }}) from
-        <a class="underline" href="{{ r.menu.url }}" rel="nofollow noopener" target="_blank">the restaurant's menu</a>
+        <a class="underline decoration-line underline-offset-2 hover:text-ink" href="{{ r.menu.url }}" rel="nofollow noopener" target="_blank">the restaurant's menu</a>
         on {{ r.analysis.analyzed_at.strftime("%b %d, %Y") }}. Menus change; AI can make mistakes.
       </p>
     </div>
   </div>
   {% else %}
-  <h2 class="text-lg font-semibold">Food score</h2>
-  <p class="text-sm text-stone-600">We couldn't read this restaurant's menu yet, so it has no food score.</p>
+  <h2 class="font-serif text-2xl font-semibold">Food score</h2>
+  <p class="mt-1 text-muted">We couldn't read this restaurant's menu yet, so it has no food score.</p>
   {% endif %}
 
-  <details class="mt-4 rounded-xl bg-stone-50 p-4" {% if message %}open{% endif %}>
-    <summary class="cursor-pointer text-sm font-semibold">Eaten here? Report what you saw</summary>
-    <p class="mt-2 text-xs text-stone-500">With {{ min_reports }} or more reports, visitors count for half of the food score.</p>
-    <form class="mt-3 space-y-3" hx-post="/r/{{ r.id }}/report" hx-target="#food" hx-swap="outerHTML">
+  <details class="group mt-6 rounded-2xl border border-line bg-surface2/60 p-5" {% if message %}open{% endif %}>
+    <summary class="flex cursor-pointer items-center justify-between text-sm font-semibold">
+      Eaten here? Report what you saw
+      <span class="text-muted transition group-open:rotate-45">+</span>
+    </summary>
+    <p class="mt-2 text-xs text-muted">With {{ min_reports }} or more reports, visitors count for half of the food score.</p>
+    <form class="mt-4 space-y-4" hx-post="/r/{{ r.id }}/report" hx-target="#food" hx-swap="outerHTML">
+      {% for legend, name, options in [
+        ("What do they cook with?", "oil", [("seed", "Seed oils"), ("olive", "Olive oil"), ("avocado", "Avocado oil"), ("animal", "Butter, ghee or tallow"), ("", "Not sure")]),
+        ("Ingredients", "ingredients", [("fresh", "Mostly fresh"), ("mixed", "Mixed"), ("processed", "Mostly processed or frozen"), ("", "Not sure")]),
+        ("Healthy options on the menu", "healthy", [("many", "Many"), ("some", "Some"), ("few", "Few or none"), ("", "Not sure")])] %}
       <fieldset>
-        <legend class="mb-1 text-sm font-medium">What do they cook with?</legend>
+        <legend class="mb-2 text-sm font-medium">{{ legend }}</legend>
         <div class="flex flex-wrap gap-2">
-          {% for key, label in [("seed", "Seed oils"), ("olive", "Olive oil"), ("avocado", "Avocado oil"), ("animal", "Butter, ghee or tallow"), ("", "Not sure")] %}
-          <label class="choice relative"><input type="radio" name="oil" value="{{ key }}"><span>{{ label }}</span></label>
+          {% for key, label in options %}
+          <label class="choice relative"><input type="radio" name="{{ name }}" value="{{ key }}"><span>{{ label }}</span></label>
           {% endfor %}
         </div>
       </fieldset>
-      <fieldset>
-        <legend class="mb-1 text-sm font-medium">Ingredients</legend>
-        <div class="flex flex-wrap gap-2">
-          {% for key, label in [("fresh", "Mostly fresh"), ("mixed", "Mixed"), ("processed", "Mostly processed or frozen"), ("", "Not sure")] %}
-          <label class="choice relative"><input type="radio" name="ingredients" value="{{ key }}"><span>{{ label }}</span></label>
-          {% endfor %}
-        </div>
-      </fieldset>
-      <fieldset>
-        <legend class="mb-1 text-sm font-medium">Healthy options on the menu</legend>
-        <div class="flex flex-wrap gap-2">
-          {% for key, label in [("many", "Many"), ("some", "Some"), ("few", "Few or none"), ("", "Not sure")] %}
-          <label class="choice relative"><input type="radio" name="healthy" value="{{ key }}"><span>{{ label }}</span></label>
-          {% endfor %}
-        </div>
-      </fieldset>
-      <button class="rounded-lg bg-stone-900 px-4 py-2 text-sm font-semibold text-white hover:bg-stone-700">Submit report</button>
-      {% if message %}<p class="text-sm font-medium text-stone-700">{{ message }}</p>{% endif %}
+      {% endfor %}
+      <div class="flex items-center gap-3">
+        <button class="btn">Submit report</button>
+        {% if message %}<p class="text-sm font-medium">{{ message }}</p>{% endif %}
+      </div>
     </form>
   </details>
 </section>

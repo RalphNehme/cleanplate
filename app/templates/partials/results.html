@@ -1,18 +1,18 @@
 {% from "macros.html" import ring, hygiene_chip %}
 {% for r in results %}
-<a href="/r/{{ r.id }}" class="flex items-center gap-3 border-b border-stone-100 px-4 py-3 hover:bg-stone-50">
-  {{ ring(r.food_score) }}
+<a href="/r/{{ r.id }}" class="group flex items-center gap-3.5 border-b border-line/70 px-5 py-3.5 transition hover:bg-surface2">
+  {{ ring(r.food_score, "h-12 w-12 text-base") }}
   <div class="min-w-0 flex-1">
-    <div class="truncate font-semibold">{{ r.name }}</div>
-    <div class="truncate text-sm text-stone-500">
+    <div class="truncate font-semibold group-hover:text-accent">{{ r.name }}</div>
+    <div class="truncate text-sm text-muted">
       {{ r.cuisine or "Restaurant" }} · {{ r.address or "" }}{% if r.borough %}, {{ r.borough }}{% endif %}
     </div>
   </div>
-  <div class="flex shrink-0 flex-col items-end gap-1 text-xs text-stone-500">
+  <div class="flex shrink-0 flex-col items-end gap-1 text-xs text-muted">
     {% if r.meters is defined and r.meters is not none %}<div>{{ (r.meters / 1609.34) | round(2) }} mi</div>{% endif %}
     {{ hygiene_chip(r.hygiene_score) }}
   </div>
 </a>
 {% else %}
-<p class="px-4 py-8 text-center text-sm text-stone-500">No restaurants with a menu score match.</p>
+<p class="px-5 py-10 text-center text-sm text-muted">No restaurants with a menu score match.</p>
 {% endfor %}
