@@ -107,6 +107,12 @@ def test_pages(client):
     assert c.get("/nyc").status_code == 200
     assert c.get("/chicago").status_code == 200
     assert c.get("/atlantis").status_code == 404
+    for name in ("Washington", "Boston", "Miami", "Philadelphia"):
+        assert name in home.text
+    assert "Coming soon" in home.text
+    boston = c.get("/boston")
+    assert boston.status_code == 200 and "Coming soon" in boston.text
+    assert c.get("/boston/stats").status_code == 200
     assert "Zzyzx Test Kitchen" in c.get("/nyc/search", params={"q": "Zzyzx"}).text
     blank = c.get(
         "/nyc/search", params={"q": "Zzyzx", "area": "", "hygiene": "", "lat": "", "lon": ""}

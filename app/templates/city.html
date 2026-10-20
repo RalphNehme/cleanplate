@@ -12,6 +12,11 @@
           hx-get="/{{ city.slug }}/search" hx-target="#results"
           hx-trigger="input changed delay:300ms from:#q, change from:select, near">
       <h1 class="text-xl font-bold">{{ city.name }} restaurants</h1>
+      {% if not results %}
+      <p class="rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-900 ring-1 ring-amber-200">
+        <strong>Coming soon.</strong> We haven't loaded {{ city.name }}'s menus yet, so there's nothing to show here so far.
+      </p>
+      {% endif %}
       <input id="q" name="q" type="search" placeholder="Search by name…" autocomplete="off"
              class="w-full rounded-lg border border-stone-300 px-3 py-2 focus:border-stone-500 focus:outline-none">
       <div class="grid grid-cols-2 gap-2 text-sm">

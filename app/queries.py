@@ -34,7 +34,8 @@ def city_cards(session: Session) -> list[dict]:
         """)
     )
     stats = {r.slug: dict(r._mapping) for r in rows}
-    return [{"city": c, **stats.get(c.slug, {})} for c in cities(session)]
+    cards = [{"city": c, **stats.get(c.slug, {})} for c in cities(session)]
+    return sorted(cards, key=lambda card: not card.get("restaurants"))
 
 
 def _filters(stmt, city_id: int, area=None, cuisine=None, hygiene=None, food=None, oil=None):
