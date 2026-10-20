@@ -98,6 +98,7 @@ def scores_page(request: Request, db: DB):
             "sodium_weight": food.SODIUM_WEIGHT,
             "center": food.CALIBRATION_CENTER,
             "stretch": food.CALIBRATION_STRETCH,
+            "prior_meals": food.PRIOR_MEALS,
         },
     )
 

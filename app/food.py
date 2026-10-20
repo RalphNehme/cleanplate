@@ -31,11 +31,15 @@ MEAL_WEIGHTS = {
     "saturated_fat": -10,
 }
 SODIUM_WEIGHT = -15
+# Short or partial menus (e.g. a chain page listing only promo items) are pulled toward the
+# average restaurant, as if PRIOR_MEALS average meals were added. PRIOR_RAW is that average.
+PRIOR_MEALS = 6
+PRIOR_RAW = 53.2
 # Averaging many meals bunches restaurants between ~30 and ~70, so the average is stretched
-# around a center (order unchanged). Tuned on all ~1,600 scored restaurants: average ~68,
-# about a quarter scoring 80+.
-CALIBRATION_CENTER = 44
-CALIBRATION_STRETCH = 2.0
+# around a center (order unchanged). Tuned on all ~1,600 scored restaurants: average ~70,
+# about a fifth scoring 80+.
+CALIBRATION_CENTER = 45
+CALIBRATION_STRETCH = 2.4
 FACTOR_LABELS = {
     "vegetables": "Vegetables & fruit",
     "whole_grains_legumes": "Whole grains & legumes",
@@ -132,7 +136,8 @@ def meal_score(meal: Meal) -> int:
 def menu_score(r: MenuReport) -> int | None:
     if not r.is_restaurant_menu or len(r.meals) < MIN_MEALS:
         return None
-    mean = sum(raw_meal_score(m) for m in r.meals) / len(r.meals)
+    total = sum(raw_meal_score(m) for m in r.meals) + PRIOR_MEALS * PRIOR_RAW
+    mean = total / (len(r.meals) + PRIOR_MEALS)
     return max(5, min(100, 5 * round(calibrate(mean) / 5)))
 
 

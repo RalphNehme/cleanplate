@@ -47,7 +47,7 @@
       </table>
     </div>
     <p class="mt-4 text-sm leading-relaxed text-muted">
-      Averaging many meals bunches most restaurants between about 30 and 70, so the average is stretched: shown score = 50 + (average − {{ center }}) × {{ stretch | round(1) }}, capped at 100. This keeps the order exactly the same and only makes differences easier to see. The weights follow mainstream dietary guidance (more vegetables, whole grains, legumes and unsaturated fats; less sodium, added sugar, saturated fat and processed meat), but the exact numbers are CleanPlate's own design and aren't clinically validated.
+      Menus that list only a few meals (say, a chain page showing just its promo items) are pulled toward the average restaurant, as if {{ prior_meals }} typical meals were added, so a short page can't swing to an extreme. Averaging many meals also bunches most restaurants between about 30 and 70, so the average is stretched: shown score = 50 + (average − {{ center }}) × {{ stretch | round(1) }}, capped at 100. This keeps the order exactly the same and only makes differences easier to see. The weights follow mainstream dietary guidance (more vegetables, whole grains, legumes and unsaturated fats; less sodium, added sugar, saturated fat and processed meat), but the exact numbers are CleanPlate's own design and aren't clinically validated.
     </p>
     <p class="mt-4 leading-relaxed">
       <strong>Unknowns don't count against a restaurant.</strong> If a menu only lists dish names, or doesn't print sodium, those parts get no points either way. Instead the page shows a lower <em>confidence</em>. Marketing claims like "natural" or "premium" don't earn points.
