@@ -26,8 +26,8 @@ MEAL_WEIGHTS = {
     "whole_grains_legumes": 12.5,  # whole grains 10 + beans 2.5
     "healthy_protein": 10,  # total protein foods 5 + seafood and plant proteins 5
     "unsaturated_fats": 10,  # fatty acids 10
-    "deep_fried": -10,  # refined grains 10 (batter, breading)
-    "processed_meat": -5,  # part of sodium, which menus rarely print
+    "deep_fried": -15,  # refined grains 10 (batter, breading) + part of unprinted sodium
+    "processed_meat": -7.5,  # part of sodium, which menus rarely print
     "added_sugar": -10,  # added sugars 10
     "saturated_fat": -10,  # saturated fats 10
 }
@@ -35,12 +35,12 @@ SODIUM_WEIGHT = -10  # sodium 10, when the menu prints it
 # Short or partial menus (e.g. a chain page listing only promo items) are pulled toward the
 # average restaurant, as if PRIOR_MEALS average meals were added. PRIOR_RAW is that average.
 PRIOR_MEALS = 6
-PRIOR_RAW = 55.4
+PRIOR_RAW = 54.1
 # Averaging many meals bunches restaurants between ~40 and ~70, so the average is stretched
 # around a center (order unchanged). Tuned on all ~1,600 scored restaurants: average ~71,
 # about a quarter scoring 80+.
-CALIBRATION_CENTER = 48
-CALIBRATION_STRETCH = 2.8
+CALIBRATION_CENTER = 46
+CALIBRATION_STRETCH = 2.6
 FACTOR_LABELS = {
     "vegetables": "Vegetables & fruit",
     "whole_grains_legumes": "Whole grains & legumes",
