@@ -178,3 +178,6 @@ class Chain(Base):
     menu_url: Mapped[str | None] = mapped_column(String(1000))
     detail: Mapped[str | None] = mapped_column(String(300))
     fetched_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    menu_text: Mapped[str | None] = mapped_column(Text)
+    menu_hash: Mapped[str | None] = mapped_column(String(64))
+    source_pages: Mapped[int | None] = mapped_column(Integer)
