@@ -74,8 +74,10 @@ class Restaurant(Base):
     food_source: Mapped[str | None] = mapped_column(String(20))
     food_reports_count: Mapped[int] = mapped_column(Integer, default=0)
     reported_oil: Mapped[str | None] = mapped_column(String(20))
+    chain_id: Mapped[int | None] = mapped_column(ForeignKey("chains.id"), index=True)
 
     city: Mapped[City] = relationship()
+    chain: Mapped["Chain | None"] = relationship()
     menu: Mapped["Menu | None"] = relationship()
     analysis: Mapped["MenuAnalysis | None"] = relationship()
     inspections: Mapped[list["Inspection"]] = relationship(
@@ -163,3 +165,16 @@ class MenuAnalysis(Base):
     analyzed_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now()
     )
+
+
+class Chain(Base):
+    __tablename__ = "chains"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    brand: Mapped[str] = mapped_column(String(100), unique=True)
+    name: Mapped[str] = mapped_column(String(200))
+    domain: Mapped[str] = mapped_column(String(200), unique=True)
+    status: Mapped[str] = mapped_column(String(20), default="pending")
+    menu_url: Mapped[str | None] = mapped_column(String(1000))
+    detail: Mapped[str | None] = mapped_column(String(300))
+    fetched_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
