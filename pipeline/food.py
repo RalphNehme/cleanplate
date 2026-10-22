@@ -5,13 +5,14 @@ import time
 from app.db import SessionLocal
 from pipeline.load import city_id
 
-STEPS = ("osm", "menus", "analyze", "rescore")
+STEPS = ("chains", "osm", "menus", "analyze", "rescore")
 
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Build menu-based food scores.")
     parser.add_argument("step", choices=STEPS)
-    parser.add_argument("--city", required=True)
+    parser.add_argument("--city", help="required for every step except chains")
+    parser.add_argument("--refetch", action="store_true", help="chains: fetch all menus again")
     parser.add_argument("--limit", type=int, default=200)
     parser.add_argument("--batch", action="store_true", help="use the Batches API (half price)")
     args = parser.parse_args()
@@ -21,6 +22,14 @@ def main() -> None:
 
     start = time.monotonic()
     with SessionLocal() as session:
+        if args.step == "chains":
+            from pipeline.chains import detect, fetch_menus
+
+            log.info("Detected %d chains", detect(session))
+            log.info("Chain menus: %s", dict(fetch_menus(session, args.refetch, args.limit)))
+            return
+        if not args.city:
+            parser.error("--city is required for this step")
         cid = city_id(session, args.city)
         if args.step == "osm":
             from pipeline.osm import match_city

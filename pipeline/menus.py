@@ -244,6 +244,8 @@ FROM restaurants r
 LEFT JOIN menus m ON m.restaurant_id = r.id
 WHERE r.city_id = :cid AND r.active AND r.website IS NOT NULL
   AND (m.id IS NULL OR m.fetched_at < now() - interval '60 days')
+  -- Locations of a chain whose national menu was found share that menu instead.
+  AND NOT EXISTS (SELECT 1 FROM chains c WHERE c.id = r.chain_id AND c.status = 'ok')
 ORDER BY md5(r.id::text)
 LIMIT :limit
 """)
