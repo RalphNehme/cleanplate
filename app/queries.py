@@ -139,6 +139,7 @@ def restaurant(session: Session, rid: int) -> Restaurant | None:
         .options(
             selectinload(Restaurant.city),
             selectinload(Restaurant.menu),
+            selectinload(Restaurant.chain),
             selectinload(Restaurant.analysis),
             selectinload(Restaurant.inspections).selectinload(Inspection.violations),
         )

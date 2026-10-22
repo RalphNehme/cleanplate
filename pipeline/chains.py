@@ -1,4 +1,5 @@
 import asyncio
+import hashlib
 import logging
 import re
 from collections import Counter
@@ -11,19 +12,21 @@ from sqlalchemy.orm import Session
 from app.models import Chain
 from pipeline.menus import (
     MAX_CHARS,
-    MIN_SIGNAL,
     SKIP_LINK,
     Fetcher,
     MenuResult,
+    _clean,
     html_text,
     menu_signal,
-    save,
 )
 from pipeline.osm import USER_AGENT
 
 MIN_LOCATIONS = 3
 NAME_MATCH_SHARE = 0.6
 MAX_PAGES = 12
+# A national menu replaces every location's own menu, so it must read as a full menu, not a
+# promo or landing page (a "featured menu" page scores ~40; full menus score in the hundreds).
+CHAIN_MIN_SIGNAL = 150
 # Hosting, social and listing sites many unrelated restaurants share.
 NOT_CHAINS = {
     "business.site",
@@ -217,7 +220,7 @@ async def _fetch_chain(fetcher: Fetcher, context, domain: str) -> MenuResult:
         await page.close()
 
     combined = "\n\n".join(t for _, t in pages)
-    if menu_signal(combined) < MIN_SIGNAL:
+    if menu_signal(combined) < CHAIN_MIN_SIGNAL:
         return MenuResult("not_found", best_url, detail="no national menu found")
     return MenuResult("ok", best_url, combined[: MAX_CHARS * 2])
 
@@ -259,19 +262,76 @@ def fetch_menus(session: Session, refetch: bool = False, limit: int = 1000) -> C
     ).all()
     results = asyncio.run(_fetch_all([(c.id, c.domain) for c in chains]))
     for chain_id, result in results.items():
+        menu = _clean(result.text) if result.status == "ok" else None
         session.execute(
             text(
-                "UPDATE chains SET status = :s, menu_url = :u, detail = :d, fetched_at = now() "
-                "WHERE id = :id"
+                "UPDATE chains SET status = :s, menu_url = :u, detail = :d, fetched_at = now(), "
+                "menu_text = :t, menu_hash = :h, source_pages = NULL WHERE id = :id"
             ),
-            {"s": result.status, "u": result.url, "d": result.detail, "id": chain_id},
+            {
+                "s": result.status,
+                "u": result.url,
+                "d": result.detail,
+                "t": menu,
+                "h": _hash(menu),
+                "id": chain_id,
+            },
         )
-        if result.status == "ok":
-            name = session.scalar(text("SELECT name FROM chains WHERE id = :id"), {"id": chain_id})
-            location = MenuResult("ok", result.url, result.text, detail=f"chain menu: {name}")
-            for (rid,) in session.execute(
-                text("SELECT id FROM restaurants WHERE chain_id = :c"), {"c": chain_id}
-            ):
-                save(session, rid, location)
     session.commit()
     return Counter(r.status for r in results.values())
+
+
+def _hash(value: str | None) -> str | None:
+    return hashlib.sha256(value.encode()).hexdigest() if value else None
+
+
+def merge_texts(texts: list[str], min_share: int = 2) -> str:
+    """Combine a chain's location pages: keep lines that appear on at least `min_share` pages
+    (menu items repeat; addresses and opening hours don't), in first-seen order."""
+    pages_with: Counter = Counter()
+    order: dict[str, None] = {}
+    for page in texts:
+        lines = [line.strip() for line in page.splitlines() if len(line.strip()) >= 3]
+        for line in lines:
+            order.setdefault(line)
+        pages_with.update(set(lines))
+    needed = min_share if len(texts) >= 4 else 1
+    kept = [line for line in order if pages_with[line] >= needed]
+    return "\n".join(kept)[: MAX_CHARS * 2]
+
+
+def merge_menus(session: Session, min_pages: int = 2) -> Counter:
+    """Give chains without a national menu one merged from their locations' own pages."""
+    chains = (
+        session.execute(text("SELECT id FROM chains WHERE status <> 'ok' ORDER BY id"))
+        .scalars()
+        .all()
+    )
+    counts: Counter = Counter()
+    for chain_id in chains:
+        pages = session.execute(
+            text(
+                "SELECT DISTINCT ON (m.text_hash) m.text, m.url FROM menus m "
+                "JOIN restaurants r ON r.id = m.restaurant_id "
+                "WHERE r.chain_id = :c AND m.status = 'ok' ORDER BY m.text_hash"
+            ),
+            {"c": chain_id},
+        ).all()
+        if len(pages) < min_pages:
+            counts["too_few_pages"] += 1
+            continue
+        merged = merge_texts([p.text for p in pages])
+        if menu_signal(merged) < CHAIN_MIN_SIGNAL:
+            counts["too_thin"] += 1
+            continue
+        session.execute(
+            text(
+                "UPDATE chains SET status = 'merged', menu_text = :t, menu_hash = :h, "
+                "menu_url = :u, source_pages = :n, "
+                "detail = 'merged from location pages' WHERE id = :id"
+            ),
+            {"t": merged, "h": _hash(merged), "u": pages[0].url, "n": len(pages), "id": chain_id},
+        )
+        counts["merged"] += 1
+    session.commit()
+    return counts

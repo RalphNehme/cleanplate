@@ -96,10 +96,15 @@
       </div>
       {% endif %}
 
+      {% set chain_menu = r.chain and r.chain.status in ("ok", "merged") %}
       <p class="text-xs text-muted">
         Analyzed by AI ({{ r.analysis.model }}) from
-        <a class="underline decoration-line underline-offset-2 hover:text-ink" href="{{ r.menu.url }}" rel="nofollow noopener" target="_blank">the restaurant's menu</a>
-        on {{ r.analysis.analyzed_at.strftime("%b %d, %Y") }}. Menus change; AI can make mistakes.
+        {% if chain_menu %}
+        <a class="underline decoration-line underline-offset-2 hover:text-ink" href="{{ r.chain.menu_url }}" rel="nofollow noopener" target="_blank">{{ r.chain.name }}'s menu</a>{% if r.chain.status == "merged" %}, combined from {{ r.chain.source_pages }} of its location pages{% endif %},
+        {% else %}
+        <a class="underline decoration-line underline-offset-2 hover:text-ink" href="{{ r.menu.url if r.menu else '#' }}" rel="nofollow noopener" target="_blank">the restaurant's menu</a>
+        {% endif %}
+        on {{ r.analysis.analyzed_at.strftime("%b %d, %Y") }}. {% if chain_menu %}Individual locations may differ. {% endif %}Menus change; AI can make mistakes.
       </p>
     </div>
   </div>

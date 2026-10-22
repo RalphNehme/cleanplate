@@ -51,14 +51,23 @@ beef tallow", "extra virgin olive oil", "seed-oil free", "canola"). Otherwise us
 - If the text is not a food menu (e.g. a homepage with no dishes), set is_restaurant_menu to \
 false and return an empty meals list."""
 
+# Chain locations are scored from their chain's menu (national, or merged from location pages);
+# other restaurants from their own page.
 PENDING = text("""
-SELECT m.restaurant_id, m.text, m.text_hash, r.name
-FROM menus m
-JOIN restaurants r ON r.id = m.restaurant_id
-LEFT JOIN menu_analyses a ON a.restaurant_id = m.restaurant_id
-WHERE r.city_id = :cid AND m.status = 'ok'
-  AND (a.id IS NULL OR a.text_hash <> m.text_hash OR a.model <> :model)
-ORDER BY md5(m.restaurant_id::text)
+SELECT * FROM (
+    SELECT r.id AS restaurant_id,
+           coalesce(c.menu_text, m.text) AS text,
+           coalesce(c.menu_hash, m.text_hash) AS text_hash,
+           coalesce(c.name, r.name) AS name,
+           a.id AS analysis_id, a.text_hash AS analyzed_hash, a.model
+    FROM restaurants r
+    LEFT JOIN chains c ON c.id = r.chain_id AND c.status IN ('ok', 'merged')
+    LEFT JOIN menus m ON m.restaurant_id = r.id AND m.status = 'ok'
+    LEFT JOIN menu_analyses a ON a.restaurant_id = r.id
+    WHERE r.city_id = :cid AND r.active AND (c.id IS NOT NULL OR m.id IS NOT NULL)
+) x
+WHERE analysis_id IS NULL OR analyzed_hash <> text_hash OR model <> :model
+ORDER BY md5(restaurant_id::text)
 LIMIT :limit
 """)
 

@@ -12,6 +12,7 @@ def main() -> None:
     parser = argparse.ArgumentParser(description="Build menu-based food scores.")
     parser.add_argument("step", choices=STEPS)
     parser.add_argument("--city", help="required for every step except chains")
+    parser.add_argument("--fetch", action="store_true", help="chains: try national menu sites")
     parser.add_argument("--refetch", action="store_true", help="chains: fetch all menus again")
     parser.add_argument("--limit", type=int, default=200)
     parser.add_argument("--batch", action="store_true", help="use the Batches API (half price)")
@@ -23,10 +24,12 @@ def main() -> None:
     start = time.monotonic()
     with SessionLocal() as session:
         if args.step == "chains":
-            from pipeline.chains import detect, fetch_menus
+            from pipeline.chains import detect, fetch_menus, merge_menus
 
             log.info("Detected %d chains", detect(session))
-            log.info("Chain menus: %s", dict(fetch_menus(session, args.refetch, args.limit)))
+            if args.fetch:
+                log.info("National menus: %s", dict(fetch_menus(session, args.refetch, args.limit)))
+            log.info("Merged menus: %s", dict(merge_menus(session)))
             return
         if not args.city:
             parser.error("--city is required for this step")
