@@ -65,6 +65,9 @@ SELECT * FROM (
     LEFT JOIN menus m ON m.restaurant_id = r.id AND m.status = 'ok'
     LEFT JOIN menu_analyses a ON a.restaurant_id = r.id
     WHERE r.city_id = :cid AND r.active AND (c.id IS NOT NULL OR m.id IS NOT NULL)
+      AND NOT EXISTS (
+          SELECT 1 FROM chains f WHERE f.id = r.chain_id AND f.status = 'featured_only'
+      )
 ) x
 WHERE analysis_id IS NULL OR analyzed_hash <> text_hash OR model <> :model
 ORDER BY md5(restaurant_id::text)

@@ -110,7 +110,11 @@
   </div>
   {% else %}
   <h2 class="font-serif text-2xl font-semibold">Food score</h2>
+  {% if r.chain and r.chain.status == "featured_only" %}
+  <p class="mt-1 text-muted">{{ r.chain.name }}'s location pages only show a few featured items, not the full menu. Scoring it from those would be misleading, so it has no food score until a full menu is available.</p>
+  {% else %}
   <p class="mt-1 text-muted">We couldn't read this restaurant's menu yet, so it has no food score.</p>
+  {% endif %}
   {% endif %}
 
   <details class="group mt-6 rounded-2xl border border-line bg-surface2/60 p-5" {% if message %}open{% endif %}>

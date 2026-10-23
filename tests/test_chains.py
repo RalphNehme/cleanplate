@@ -113,3 +113,87 @@ def test_chain_locations_are_analyzed_from_the_chain_menu(db):
         for r in db.execute(PENDING, {"cid": cid, "limit": 10_000_000, "model": ANALYZER})
     }
     assert rows[rid].text == "Kale bowl" and rows[rid].name == "Zzyzx Test"
+
+
+def test_featured_only_chains_are_hidden_and_not_analyzed(db):
+    from app.food import refresh_food
+    from pipeline.analyze import ANALYZER, PENDING
+    from pipeline.chains import merge_menus
+
+    cid = db.scalar(text("SELECT id FROM cities WHERE slug = 'nyc'"))
+    chain = db.scalar(
+        text(
+            "INSERT INTO chains (brand, name, domain, status) "
+            "VALUES ('zzyzx test', 'Zzyzx Test', 'zzyzx.test', 'pending') RETURNING id"
+        )
+    )
+    promo = "Featured: Zzyzx Crunch Taco\nOrder now"
+    ids = []
+    for i in range(5):
+        rid = db.scalar(
+            text(
+                "INSERT INTO restaurants (city_id, source_id, name, active, chain_id) "
+                "VALUES (:c, :s, 'Zzyzx Test', true, :ch) RETURNING id"
+            ),
+            {"c": cid, "s": f"chain-promo-{i}", "ch": chain},
+        )
+        db.execute(
+            text(
+                "INSERT INTO menus (restaurant_id, status, url, text, text_hash) "
+                "VALUES (:r, 'ok', 'https://zzyzx.test/x', :t, :h)"
+            ),
+            {"r": rid, "t": f"{promo}\n{i} Main St", "h": f"promo-{i}"},
+        )
+        db.execute(
+            text(
+                "INSERT INTO menu_analyses (restaurant_id, model, text_hash, score, data) "
+                "VALUES (:r, :m, :h, 80, '{}')"
+            ),
+            {"r": rid, "m": ANALYZER, "h": f"old-{i}"},
+        )
+        ids.append(rid)
+
+    merge_menus(db)
+    assert db.scalar(text("SELECT status FROM chains WHERE id = :c"), {"c": chain}) == (
+        "featured_only"
+    )
+    pending = {
+        r.restaurant_id
+        for r in db.execute(PENDING, {"cid": cid, "limit": 10_000_000, "model": ANALYZER})
+    }
+    assert not pending & set(ids)
+    refresh_food(db, city_id=cid)
+    scores = db.scalars(
+        text("SELECT food_score FROM restaurants WHERE id = ANY(:ids)"), {"ids": ids}
+    ).all()
+    assert scores == [None] * 5
+
+
+def test_a_few_short_pages_are_treated_as_a_small_menu(db):
+    from pipeline.chains import merge_menus
+
+    cid = db.scalar(text("SELECT id FROM cities WHERE slug = 'nyc'"))
+    chain = db.scalar(
+        text(
+            "INSERT INTO chains (brand, name, domain, status) "
+            "VALUES ('zzyzx small', 'Zzyzx Small', 'zzyzx-small.test', 'featured_only') "
+            "RETURNING id"
+        )
+    )
+    for i in range(2):
+        rid = db.scalar(
+            text(
+                "INSERT INTO restaurants (city_id, source_id, name, active, chain_id) "
+                "VALUES (:c, :s, 'Zzyzx Small', true, :ch) RETURNING id"
+            ),
+            {"c": cid, "s": f"chain-small-{i}", "ch": chain},
+        )
+        db.execute(
+            text(
+                "INSERT INTO menus (restaurant_id, status, url, text, text_hash) "
+                "VALUES (:r, 'ok', 'https://zzyzx-small.test', :t, :h)"
+            ),
+            {"r": rid, "t": "Burger\nFries", "h": f"small-{i}"},
+        )
+    merge_menus(db)
+    assert db.scalar(text("SELECT status FROM chains WHERE id = :c"), {"c": chain}) == "pending"

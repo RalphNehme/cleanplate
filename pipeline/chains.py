@@ -27,6 +27,7 @@ MAX_PAGES = 12
 # A national menu replaces every location's own menu, so it must read as a full menu, not a
 # promo or landing page (a "featured menu" page scores ~40; full menus score in the hundreds).
 CHAIN_MIN_SIGNAL = 150
+PROMO_MIN_PAGES = 5
 # Hosting, social and listing sites many unrelated restaurants share.
 NOT_CHAINS = {
     "business.site",
@@ -317,12 +318,31 @@ def merge_menus(session: Session, min_pages: int = 2) -> Counter:
             ),
             {"c": chain_id},
         ).all()
-        if len(pages) < min_pages:
+        merged = merge_texts([p.text for p in pages]) if len(pages) >= min_pages else ""
+        thin = menu_signal(merged) < CHAIN_MIN_SIGNAL
+        if thin and len(pages) < PROMO_MIN_PAGES:
+            # A few short pages may just be a small menu: locations keep their own pages.
+            session.execute(
+                text(
+                    "UPDATE chains SET status = 'pending', menu_text = NULL, menu_hash = NULL, "
+                    "source_pages = NULL WHERE id = :id AND status IN ('merged', 'featured_only')"
+                ),
+                {"id": chain_id},
+            )
             counts["too_few_pages"] += 1
             continue
-        merged = merge_texts([p.text for p in pages])
-        if menu_signal(merged) < CHAIN_MIN_SIGNAL:
-            counts["too_thin"] += 1
+        if thin:
+            # Many pages that add up to so little are the same featured-items promo everywhere;
+            # those locations stay hidden until a full menu turns up.
+            session.execute(
+                text(
+                    "UPDATE chains SET status = 'featured_only', menu_text = NULL, "
+                    "menu_hash = NULL, source_pages = :n, "
+                    "detail = 'location pages only show featured items' WHERE id = :id"
+                ),
+                {"n": len(pages), "id": chain_id},
+            )
+            counts["featured_only"] += 1
             continue
         session.execute(
             text(
@@ -333,5 +353,4 @@ def merge_menus(session: Session, min_pages: int = 2) -> Counter:
             {"t": merged, "h": _hash(merged), "u": pages[0].url, "n": len(pages), "id": chain_id},
         )
         counts["merged"] += 1
-    session.commit()
     return counts

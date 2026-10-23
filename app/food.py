@@ -192,15 +192,16 @@ UPDATE restaurants r
 SET food_reports_count = coalesce(agg.reports, 0),
     reported_oil = agg.oil,
     cuisine = coalesce(r.cuisine, r.osm_cuisine, ma.cuisine),
-    food_score = CASE WHEN ma.score IS NULL THEN NULL
+    food_score = CASE WHEN ma.score IS NULL OR ch.status = 'featured_only' THEN NULL
                       WHEN agg.n >= :min THEN round((ma.score + agg.score) / 2.0)
                       ELSE ma.score END,
-    food_source = CASE WHEN ma.score IS NULL THEN NULL
+    food_source = CASE WHEN ma.score IS NULL OR ch.status = 'featured_only' THEN NULL
                        WHEN agg.n >= :min THEN 'menu+reports'
                        ELSE 'menu' END
 FROM restaurants r2
 LEFT JOIN agg ON agg.restaurant_id = r2.id
 LEFT JOIN menu_analyses ma ON ma.restaurant_id = r2.id
+LEFT JOIN chains ch ON ch.id = r2.chain_id
 WHERE r.id = r2.id AND {where}
 """
 

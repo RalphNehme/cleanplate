@@ -2,7 +2,10 @@ import argparse
 import logging
 import time
 
+from sqlalchemy import text
+
 from app.db import SessionLocal
+from app.food import refresh_food
 from pipeline.load import city_id
 
 STEPS = ("chains", "osm", "menus", "analyze", "rescore")
@@ -30,6 +33,10 @@ def main() -> None:
             if args.fetch:
                 log.info("National menus: %s", dict(fetch_menus(session, args.refetch, args.limit)))
             log.info("Merged menus: %s", dict(merge_menus(session)))
+            session.commit()
+            for slug in session.scalars(text("SELECT slug FROM cities")).all():
+                refresh_food(session, city_id=city_id(session, slug))
+            session.commit()
             return
         if not args.city:
             parser.error("--city is required for this step")
