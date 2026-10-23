@@ -1,16 +1,22 @@
 {% from "macros.html" import ring, hygiene_chip %}
 {% for r in results %}
-<a href="/r/{{ r.id }}" class="group flex items-center gap-3.5 border-b border-line/70 px-5 py-3.5 transition hover:bg-surface2">
-  {{ ring(r.food_score, "h-12 w-12 text-base") }}
+{% set grouped = r.locations > 1 %}
+<a href="{{ '/' ~ city.slug ~ '/chains/' ~ r.chain_id if grouped else '/r/' ~ r.id }}" class="group flex items-center gap-3.5 border-b border-line/70 px-5 py-3.5 transition hover:bg-surface2">
+  {{ ring(r.food_avg if grouped else r.food_score, "h-12 w-12 text-base") }}
   <div class="min-w-0 flex-1">
     <div class="truncate font-semibold group-hover:text-accent">{{ r.name }}</div>
     <div class="truncate text-sm text-muted">
+      {% if grouped %}
+      {{ r.cuisine or "Restaurant" }} · {{ r.locations }} locations{% if r.food_min != r.food_max %} · scores {{ r.food_min }}–{{ r.food_max }}{% endif %}
+      {% else %}
       {{ r.cuisine or "Restaurant" }} · {{ r.address or "" }}{% if r.borough %}, {{ r.borough }}{% endif %}
+      {% endif %}
     </div>
   </div>
   <div class="flex shrink-0 flex-col items-end gap-1 text-xs text-muted">
     {% if r.meters is defined and r.meters is not none %}<div>{{ (r.meters / 1609.34) | round(2) }} mi</div>{% endif %}
-    {{ hygiene_chip(r.hygiene_score) }}
+    {% if grouped %}<span class="flex items-center gap-1 font-medium text-ink">All locations <span aria-hidden="true">→</span></span>
+    {% else %}{{ hygiene_chip(r.hygiene_score) }}{% endif %}
   </div>
 </a>
 {% else %}

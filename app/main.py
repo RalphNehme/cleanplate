@@ -54,6 +54,8 @@ def get_city(slug: str, db: DB) -> City:
 
 
 CityDep = Annotated[City, Depends(get_city)]
+# Rows fetched before grouping chain locations, so a chain counts all its matches.
+GROUP_POOL = 500
 
 
 class Filters:
@@ -258,7 +260,7 @@ def city_page(request: Request, city: CityDep, db: DB):
         {
             "city": city,
             "options": queries.options(db, city.id),
-            "results": queries.search(db, city.id),
+            "results": queries.group_chains(queries.search(db, city.id, limit=GROUP_POOL)),
         },
     )
 
@@ -273,8 +275,24 @@ def city_search(
     lat: Coord = None,
     lon: Coord = None,
 ):
-    results = queries.search(db, city.id, q.strip(), lat, lon, **f.values)
-    return templates.TemplateResponse(request, "partials/results.html", {"results": results})
+    rows = queries.search(db, city.id, q.strip(), lat, lon, limit=GROUP_POOL, **f.values)
+    return templates.TemplateResponse(
+        request, "partials/results.html", {"city": city, "results": queries.group_chains(rows)}
+    )
+
+
+@app.get("/{slug}/chains/{chain_id}", response_class=HTMLResponse)
+def chain_page(request: Request, city: CityDep, chain_id: int, db: DB):
+    chain = queries.chain(db, chain_id)
+    locations = queries.chain_locations(db, city.id, chain_id) if chain else []
+    if not locations:
+        raise HTTPException(404)
+    r = queries.restaurant(db, locations[0]["id"])
+    return templates.TemplateResponse(
+        request,
+        "chain.html",
+        {"city": city, "chain": chain, "locations": locations, "r": r},
+    )
 
 
 @app.get("/{slug}/stats", response_class=HTMLResponse)

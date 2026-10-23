@@ -2,7 +2,7 @@ from geoalchemy2 import Geometry
 from sqlalchemy import exists, func, select, text
 from sqlalchemy.orm import Session, selectinload
 
-from app.models import City, Inspection, MenuAnalysis, Restaurant
+from app.models import Chain, City, Inspection, MenuAnalysis, Restaurant
 
 BANDS = {
     "excellent": (90, 100),
@@ -81,7 +81,9 @@ def search(
         Restaurant.food_source,
         Restaurant.latest_grade,
         Restaurant.latest_inspected_at,
-    )
+        Restaurant.chain_id,
+        Chain.name.label("chain_name"),
+    ).outerjoin(Chain, Chain.id == Restaurant.chain_id)
     stmt = _filters(stmt, city_id, **filters)
     if q:
         stmt = stmt.where(Restaurant.name.ilike(f"%{q}%") | Restaurant.name.op("%")(q))
@@ -96,6 +98,65 @@ def search(
     elif not q:
         stmt = stmt.order_by(Restaurant.food_score.desc(), Restaurant.name)
     return [dict(r._mapping) for r in session.execute(stmt.limit(limit))]
+
+
+def group_chains(rows: list[dict], limit: int = 30) -> list[dict]:
+    """Collapse a chain's locations into one entry, keeping the order of its first location."""
+    entries: list[dict] = []
+    by_chain: dict[int, dict] = {}
+    for row in rows:
+        chain = row.get("chain_id")
+        if chain is None:
+            entries.append({**row, "locations": 1})
+            continue
+        if chain not in by_chain:
+            entry = {
+                **row,
+                "name": row["chain_name"] or row["name"],
+                "locations": 0,
+                "food_min": row["food_score"],
+                "food_max": row["food_score"],
+            }
+            by_chain[chain] = entry
+            entries.append(entry)
+        entry = by_chain[chain]
+        entry["locations"] += 1
+        entry["food_min"] = min(entry["food_min"], row["food_score"])
+        entry["food_max"] = max(entry["food_max"], row["food_score"])
+        entry["food_total"] = entry.get("food_total", 0) + row["food_score"]
+    for entry in by_chain.values():
+        entry["food_avg"] = 5 * round(entry["food_total"] / entry["locations"] / 5)
+    return entries[:limit]
+
+
+def chain(session: Session, chain_id: int) -> Chain | None:
+    return session.get(Chain, chain_id)
+
+
+def chain_locations(session: Session, city_id: int, chain_id: int) -> list[dict]:
+    geom = Restaurant.geom.cast(Geometry)
+    stmt = (
+        select(
+            Restaurant.id,
+            Restaurant.name,
+            Restaurant.address,
+            Restaurant.borough,
+            Restaurant.zip,
+            Restaurant.food_score,
+            Restaurant.hygiene_score,
+            Restaurant.latest_grade,
+            func.ST_Y(geom).label("lat"),
+            func.ST_X(geom).label("lon"),
+        )
+        .where(
+            Restaurant.city_id == city_id,
+            Restaurant.chain_id == chain_id,
+            Restaurant.active,
+            Restaurant.food_score.is_not(None),
+        )
+        .order_by(Restaurant.food_score.desc(), Restaurant.address)
+    )
+    return [dict(r._mapping) for r in session.execute(stmt)]
 
 
 def points(session: Session, city_id: int, **filters) -> list[list]:

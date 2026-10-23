@@ -1,0 +1,80 @@
+{% extends "base.html" %}
+{% from "macros.html" import ring, hygiene_chip, official %}
+{% block title %}{{ chain.name }} in {{ city.name }} · food score · CleanPlate{% endblock %}
+{% block head %}
+<link rel="stylesheet" href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css">
+<script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
+{% endblock %}
+{% block body %}
+{% set scores = locations | map(attribute="food_score") | list %}
+<main class="mx-auto max-w-5xl space-y-5 px-4 py-6 sm:px-6 sm:py-10">
+  <a href="/{{ city.slug }}" class="inline-flex items-center gap-1 text-sm text-muted hover:text-ink">← {{ city.name }}</a>
+
+  <section>
+    <p class="text-xs font-semibold uppercase tracking-widest text-accent">{{ r.cuisine or "Restaurant" }} · chain</p>
+    <h1 class="mt-1 font-serif text-4xl font-semibold leading-tight tracking-tight sm:text-5xl">{{ chain.name }}</h1>
+    <p class="mt-2 text-muted">
+      {{ locations | length }} location{{ "" if locations | length == 1 else "s" }} in {{ city.name }}
+      {% if scores | min != scores | max %} · food scores {{ scores | min }}–{{ scores | max }}{% endif %}
+    </p>
+  </section>
+
+  {% include "partials/food.html" %}
+
+  <section class="card overflow-hidden">
+    <div class="flex items-center justify-between px-6 py-5">
+      <h2 class="font-serif text-xl font-semibold">All locations</h2>
+      <span class="text-sm text-muted">Hygiene is per location</span>
+    </div>
+    <div id="chain-map" class="h-72 border-y border-line"></div>
+    <ul class="divide-y divide-line">
+      {% for loc in locations %}
+      <li>
+        <a href="/r/{{ loc.id }}" class="flex items-center gap-3.5 px-6 py-3.5 transition hover:bg-surface2">
+          {{ ring(loc.food_score, "h-10 w-10 text-sm") }}
+          <div class="min-w-0 flex-1">
+            <div class="truncate font-medium">{{ loc.address or loc.name }}</div>
+            <div class="truncate text-sm text-muted">{{ loc.borough or "" }} {{ loc.zip or "" }}</div>
+          </div>
+          <div class="flex shrink-0 flex-col items-end gap-1">
+            {{ hygiene_chip(loc.hygiene_score) }}
+            {{ official(loc.latest_grade, city) }}
+          </div>
+        </a>
+      </li>
+      {% endfor %}
+    </ul>
+  </section>
+</main>
+<script>
+const dark = window.matchMedia("(prefers-color-scheme: dark)").matches;
+const color = getComputedStyle(document.documentElement).getPropertyValue("--excellent").trim();
+const places = {{ locations | tojson }}.filter((l) => l.lat !== null);
+const chainMap = new maplibregl.Map({
+  container: "chain-map",
+  style: `https://tiles.openfreemap.org/styles/${dark ? "dark" : "positron"}`,
+  center: [{{ city.center_lon }}, {{ city.center_lat }}],
+  zoom: {{ city.zoom }},
+  attributionControl: { compact: true },
+});
+chainMap.addControl(new maplibregl.NavigationControl({ showCompass: false }), "top-right");
+const bounds = new maplibregl.LngLatBounds();
+for (const place of places) {
+  const link = document.createElement("a");
+  link.href = `/r/${place.id}`;
+  link.className = "popup";
+  link.innerHTML = "<strong></strong><span></span>";
+  link.querySelector("strong").textContent = place.address || place.name;
+  link.querySelector("span").textContent = `Food ${place.food_score} · Hygiene ${place.hygiene_score ?? "–"}`;
+  new maplibregl.Marker({ color })
+    .setLngLat([place.lon, place.lat])
+    .setPopup(new maplibregl.Popup({ offset: 24, closeButton: false }).setDOMContent(link))
+    .addTo(chainMap);
+  bounds.extend([place.lon, place.lat]);
+}
+chainMap.on("load", () => {
+  chainMap.resize();
+  if (places.length) chainMap.fitBounds(bounds, { padding: 48, maxZoom: 14, duration: 0 });
+});
+</script>
+{% endblock %}
