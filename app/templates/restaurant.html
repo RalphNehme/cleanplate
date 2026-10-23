@@ -20,6 +20,7 @@
       <div class="mt-3 flex flex-wrap items-center gap-2">
         {% for d in (r.diet_tags or "").split(",") if d %}<span class="chip s-good">{{ d | replace("_", " ") | title }} options</span>{% endfor %}
         {% if r.website %}<a href="{{ r.website }}" class="rounded-full border border-line px-3 py-1 text-xs font-medium hover:border-muted" rel="nofollow noopener" target="_blank">Website ↗</a>{% endif %}
+        {% if r.chain and r.food_score is not none %}<a href="/{{ city.slug }}/chains/{{ r.chain_id }}" class="rounded-full border border-line px-3 py-1 text-xs font-medium hover:border-muted">All {{ r.chain.name }} locations →</a>{% endif %}
         {% if not r.active %}<span class="chip s-none">Likely closed</span>{% endif %}
       </div>
     </div>

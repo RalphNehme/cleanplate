@@ -140,6 +140,7 @@ def test_pages(client):
     assert "Zzyzx" in page.text and "Kale salad" in page.text and "olive oil" in page.text
     assert c.get("/nyc/stats").status_code == 200
     assert c.get("/scores").status_code == 200
+    assert c.get("/nyc/chains/999999999").status_code == 404
     assert c.get("/r/999999999").status_code == 404
 
 
