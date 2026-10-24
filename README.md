@@ -56,10 +56,12 @@ ruff check . && ruff format --check .
 ```
 
 ## Roadmap
-- [ ] Full menu run for both cities, then a monthly refresh of changed menus
+- [x] Full menu run for Chicago
+- [ ] Full menu run for New York City, then a monthly refresh of changed menus
 - [ ] AWS deployment: Terraform, ECS Fargate, RDS, scheduled pipeline tasks, CD on push
+- [ ] Full menus for chains whose location pages only show featured items
+- [ ] Data for Washington DC, Boston, Miami and Philadelphia
 - [ ] Email alerts when a followed restaurant's score changes
-- [ ] More cities
 
 ## Data
 - New York City: NYC Department of Health and Mental Hygiene, [Restaurant Inspection Results](https://data.cityofnewyork.us/Health/DOHMH-New-York-City-Restaurant-Inspection-Results/43nn-pn8j)
