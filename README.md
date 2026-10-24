@@ -24,11 +24,12 @@ See `/scores` on the site for the exact formulas.
 NYC / Chicago open data ──► pipeline.run      inspections, hygiene scores ─┐
 OpenStreetMap (Overpass) ─► pipeline.food osm  real cuisine, diet tags, websites
 Restaurant websites ──────► pipeline.food menus  HTML/PDF menus, Playwright for JS sites
-Claude Haiku 5.5 ─────────► pipeline.food analyze  structured menu report ──► food score
+Shared website domains ───► pipeline.food chains  group chains, merge location pages
+Claude Haiku 5.5 ─────────► pipeline.food analyze  per-meal factor ratings ──► food score
                                                                             ▼
                                                      Postgres + PostGIS ──► FastAPI pages + JSON API
 ```
-The menu fetcher respects robots.txt and never fetches delivery marketplaces. Identical chain menus are analyzed once, and large runs can use the Message Batches API at half price.
+The menu fetcher respects robots.txt and bot protection and never fetches delivery marketplaces. Identical menus are analyzed once, and large runs can use the Message Batches API at half price. Saved analyses can be rescored for free after a formula change (`pipeline.food rescore`).
 
 ## Run locally
 Requires Docker and Python 3.12.
@@ -43,6 +44,7 @@ python -m pipeline.run --city nyc --full
 python -m pipeline.run --city chicago --full
 python -m pipeline.food osm --city chicago
 python -m pipeline.food menus --city chicago --limit 500
+python -m pipeline.food chains                                    # after menus, for all cities
 python -m pipeline.food analyze --city chicago --limit 200        # add --batch for big runs
 docker compose up -d --build web           # http://localhost:8000
 ```
