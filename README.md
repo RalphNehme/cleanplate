@@ -1,16 +1,19 @@
 # CleanPlate
 
-How good is the food, really? CleanPlate reads each restaurant's actual menu and gives it a **food score** from 1 to 100: fresh whole ingredients score high, while deep-fried, ultra-processed and seed-oil cooking score low. A smaller **hygiene score** from official health inspections sits alongside. Cities: New York City and Chicago.
+How good is the food, really? CleanPlate reads each restaurant's actual menu and gives it a **food score** from 1 to 100: meals built on vegetables, whole grains, legumes and lean protein score high, while deep-fried, processed-meat, sugary and saturated-fat-heavy meals score low. A smaller **hygiene score** from official health inspections sits alongside. Live cities: New York City and Chicago, with Washington DC, Boston, Miami and Philadelphia coming soon.
 
 **Stack:** Python · FastAPI · PostgreSQL + PostGIS · SQLAlchemy · Alembic · Claude API (Haiku 5.5) · Playwright · HTMX · MapLibre GL · Chart.js · Docker · GitHub Actions
 
 ## Features
-- **Menu-based food score:** Claude reads each restaurant's menu and reports the share of fried, ultra-processed, sweet, whole-food and vegetable-forward dishes, quality claims ("organic", "grass-fed", "house-made") and any cooking oil named. A fixed formula turns that report into the score. Every score shows the quoted menu lines behind it.
-- **No guesses:** restaurants without a readable menu aren't scored or listed
-- **Visitor reports:** with 3 or more reports on oil, ingredients and healthy options, visitors count for half of the score
+- **Per-meal food score:** Claude reads each menu and rates up to 25 main meals on nine factors (vegetables & fruit, whole grains & legumes, healthy protein, unsaturated fats, deep-fried, processed meat, added sugar, saturated fat, and sodium when printed). Weights follow the proportions of the USDA Healthy Eating Index (HEI-2020), with frying and processed meat standing in for sodium, which menus rarely print. Each restaurant page shows every meal's score, the best and worst dishes, and a confidence level.
+- **Fair to short menus:** a restaurant's score is its average meal, pulled toward the average restaurant so a few dishes can't produce an extreme score. At least 5 meals are needed; desserts and drinks are counted separately.
+- **No guesses:** restaurants without a readable menu aren't scored or listed. Unclear dishes lower the confidence level, not the score.
+- **Seed oils, as information:** any cooking oil named on the menu is shown, and there's a "No seed oils" filter, but oils aren't penalized because mainstream evidence doesn't support it. `/scores` explains why.
+- **Chains:** restaurants sharing a website are grouped into one entry ("Sweetgreen · 41 locations") with a page listing every location. Their location pages are merged into one chain menu; chains whose pages only show a few featured items stay hidden until a full menu is available.
+- **Visitor reports:** with 3 or more reports on ingredients and healthy options, visitors count for half of the score. Reported cooking oil is shown but not scored.
 - **Hygiene score:** NYC violation points and Chicago violation severity converted to 1–100, next to the official grade
 - City picker homepage, then a map, search and stats for each city
-- Vector map (MapLibre + OpenFreeMap) with clusters colored by average food score
+- Vector map (MapLibre + OpenFreeMap) with clusters colored by average food score, in light and dark mode
 - Filters for area, cuisine, food and hygiene bands, and "no seed oils"
 - JSON API: `/api/cities`, `/api/{city}/search`, `/api/{city}/points`, `/api/{city}/stats`, `/api/restaurants/{id}`
 
